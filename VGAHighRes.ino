@@ -51,15 +51,26 @@ short ymin=400;
 short ymax=800;
 short yoffset=100;
 short xoffset=100;
+float a=100; //amplitude
+float b=100; //frequencia
+short Xmin=200;
+short Xmax=700;
+short Ymin=100;
+short Ymax=350;
+short Yoffset=100;
+short Xoffset=100;
   
-
-
-for(short i = 0; i < xmax-xmin; i++){
+for(short i = 0; i < xmax-xmin && i < Xmax-Xmin ; i++){
 int yres=ymin+yoffset+(int)(-A*sin(t+(float)(i+xoffset)/B));
+int Yres=Ymin+Yoffset+(int)(-a*sin(u+(float)(i+Xoffset)/b));
 if(yres>ymax)
 yres=ymax;
 if(yres<ymin)
 yres=ymin;
+if(Yres>Ymax)
+Yres=Ymax;
+if(Yres<Ymin)
+Yres=Ymin;
 if(i>0)
 for(int k = ymin; k< ymax; k++)
 if(k!=yoffset-1)
@@ -75,10 +86,24 @@ for(short i = ymin; i < ymax; i++){
 t+=0.01;
 
 if(t>2*3.1415){
-  t=0;
+  t=0;}
+  for(int k = Ymin; k< Ymax; k++)
+if(k!=Yoffset-1)
+if(vga.get(Ymin+i,k) == 0)
+vga.dot(Xmin+i,k,0);
+vga.dot(Xmin+i,Yres,(int)(0xffffff*(u/(2*3.1415))));
+for(short i = Ymin; i < Ymax; i++){
+  vga.dot(Xmin - 1,i,0xffffff);
 }
-
+  for(short i = Xmin; i < Xmax; i++){
+  vga.dot(i,Ymin+Yoffset,0xffffff);
 }
+u+=0.01;
+if(u>2*3.1415){
+  u=0;
+}
+}
+ 
   vga.setCursor(725, 500);
   vga.print("t");
   vga.setCursor(175, 400);
@@ -89,38 +114,5 @@ if(t>2*3.1415){
   vga.setCursor(175, 85);
   vga.printV("Vi");
 
-float a=100; //amplitude
-float b=100; //frequencia
-short Xmin=200;
-short Xmax=700;
-short Ymin=100;
-short Ymax=350;
-short Yoffset=100;
-short Xoffset=100;
-  
-for(short i = 0; i < Xmax-Xmin; i++){
-int Yres=Ymin+Yoffset+(int)(-a*sin(u+(float)(i+Xoffset)/b));
-if(Yres>Ymax)
-Yres=Ymax;
-if(Yres<Ymin)
-Yres=Ymin;
-if(i>0)
-for(int k = Ymin; k< Ymax; k++)
-if(k!=Yoffset-1)
-if(vga.get(Ymin+i,k) == 0)
-vga.dot(Xmin+i,k,0);
-vga.dot(Xmin+i,Yres,(int)(0xffffff*(t/(2*3.1415))));
-for(short i = Ymin; i < Ymax; i++){
-  vga.dot(Xmin - 1,i,0xffffff);
-}
-  for(short i = Xmin; i < Xmax; i++){
-  vga.dot(i,Ymin+Yoffset,0xffffff);
-}
-u+=0.01;
-
-if(u>2*3.1415){
-  u=0;
-}
-}
  }
    
