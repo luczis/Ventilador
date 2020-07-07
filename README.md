@@ -5,4 +5,5 @@ Projeto para uma interface Homem-Máquina desenvolvida a fim de ser utilizada pa
 # Colaboradores
 
 Bruno Gabriel da Silva
+
 Lucas Zischler
