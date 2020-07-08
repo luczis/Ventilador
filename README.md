@@ -7,3 +7,15 @@ Projeto para uma interface Homem-Máquina desenvolvida a fim de ser utilizada pa
 Bruno Gabriel da Silva
 
 Lucas Zischler
+
+# TODO
+
+-Corrigir sincronização dos gráficos;
+
+-Nova função para rendenizar texto;
+
+-Limitar os FPS;
+
+-Converter gráficos e caixas de informações pra classes ou funções;
+
+-Encrementar funções para leitura de botões e encoder;
