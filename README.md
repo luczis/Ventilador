@@ -10,8 +10,6 @@ Lucas Zischler
 
 # TODO
 
--Corrigir sincronização dos gráficos;
-
 -Nova função para rendenizar texto;
 
 -Limitar os FPS;
