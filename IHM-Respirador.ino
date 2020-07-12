@@ -2,9 +2,9 @@
 // Projeto para uma interface Homem-Maquina desenvolvida a fim de ser utilizada para um respirador artificial,
 // voltado para um ESP32. Desenvolvido em nome da UTFPR-Campus Apucarana.
 
-#include <ESP32Lib.h>
-#include <Ressources/Font8x8.h>
-#include <Ressources/CodePage437_9x16.h>
+#include "include/ESP32Lib.h"
+#include "include/Itens.h"
+#include "include/Ressources/Font8x8.h"
 
 //pin configuration
 const int redPin = 14;
@@ -30,8 +30,9 @@ void setup()
 	//black text color no background color
 	vga.setTextColor(0x8);
 	//show the remaining memory
-	vga.print("AJUSTES");
+	//vga.print("AJUSTES");
 	vga.setFrameBufferCount(1);
+	/*
 	vga.setTextColor(0x9);
 	vga.setCursor(725, 500);
 	vga.print("t");
@@ -43,9 +44,13 @@ void setup()
 	vga.setCursor(175, 85);
 	vga.printV("Vi");
 	vga.setCursor(40, 20);
+	*/
 
-	// eixos
-	for(short i =0; i < 801; i++){
+	DrawBackground(800,600,0xf,0xe);
+	DrawLogo(690, 10);
+
+	//eixos
+	/*for(short i =0; i < 801; i++){
 		for(short j =0; j < 250; j++){
 			vga.dot(j,i,0x0);
 		}
@@ -58,12 +63,12 @@ void setup()
 		vga.dot(i,150,0xf);
 		vga.dot(i,300,0xf);
 		vga.dot(i,450,0xf);
-	}
+	}*/
 }
 
 void loop()
 {
-	float A=100; //amplitude
+	/*float A=100; //amplitude
 	float B=100; //frequencia
 	short xmin=300;
 	short xmax=750;
@@ -129,5 +134,5 @@ void loop()
 		t=0;}
 		if(u>2*3.1415){
 		u=0;
-	}
+	}*/
 }

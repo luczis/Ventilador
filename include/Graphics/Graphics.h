@@ -141,96 +141,35 @@ class Graphics: public ImageDrawer
 		cursorY = y;
 	}
 
-	char size = 1;
-
-virtual void drawChar(int x, int y, int ch)
+	virtual void drawChar(int x, int y, int ch, char size, bool is_vertical)
 	{
 		if (!font)
 			return;
 		if (!font->valid(ch))
 			return;
 		const unsigned char *pix = &font->pixels[font->charWidth * font->charHeight * (ch - font->firstChar)];
-		for (int py = 0; py < font->charHeight*size; py+=size)
-			for (int px = 0; px < font->charWidth*size; px+=size)
+		int px = 0, py = 0;
+		for (is_vertical? px = 0 : py = 0; is_vertical ? px < font->charHeight*size : py < font->charHeight*size; is_vertical ? px+=size : py+=size)
+			for (is_vertical ? py = 0 : px = 0; is_vertical ? py < font->charWidth*size : px < font->charWidth*size; is_vertical ? py+=size : px+=size)
 				if (*(pix++))
 					for(char i = 0; i < size; i++)
 					{
-					    for(char j = 0; j < size; j++)
-					    {
-						    dotMix(px + i + x, py + j + y, frontColor);
-                        }
+						for(char j = 0; j < size; j++)
+						{
+						    is_vertical ? dotMix(py + i + x, px + j + y, frontColor) : dotMix(px + i + x, py + j + y, frontColor);
+                        			}
 					}
 				else
-                	for(char i = 0; i < size; i++)
+                			for(char i = 0; i < size; i++)
 					{
-					    for(char j = 0; j < size; j++)
-					    {
-						    dotMix(px + i + x, py + j + y, backColor);
-                        }
-					}
-	}
-virtual void drawCharV(int x, int y, int ch)
-	{
-		if (!font)
-			return;
-		if (!font->valid(ch))
-			return;
-		const unsigned char *pix = &font->pixels[font->charWidth * font->charHeight * (ch - font->firstChar)];
-		for (int py = 0; py < font->charHeight*size; py+=size)
-			for (int px = 0; px < font->charWidth*size; px+=size)
-				if (*(pix++))
-					for(char i = 0; i < size; i++)
-					{
-					    for(char j = 0; j < size; j++)
-					    {
-						    dotMix(px + i + x, py + j + y, frontColor);
-                        }
-					}
-				else
-                	for(char i = 0; i < size; i++)
-					{
-					    for(char j = 0; j < size; j++)
-					    {
-						    dotMix(px + i + x, py + j + y, backColor);
-                        }
+						for(char j = 0; j < size; j++)
+					    	{
+						    is_vertical ? dorMix(py + i + x, px + j + y, backColor) : dotMix(px + i + x, py + j + y, backColor);
+                        			}
 					}
 	}
 
-void printV(const char ch)
-	{
-		if (!font)
-			return;
-		if (font->valid(ch))
-			drawCharV(cursorX, cursorY, ch);
-		else
-			drawCharV(cursorX, cursorY, ' ');		
-		cursorY += font->charWidth * size;
-		if (cursorY + font->charWidth * size> yres)
-		{
-			cursorY = cursorBaseX;
-			cursorX += font->charHeight * size;
-			if(autoScroll && cursorX + font->charHeight * size > xres)
-				scroll(cursorX + font->charHeight * size - xres, backColor);
-		}
-	}
-void printV(const char *str)
-	{
-		if (!font)
-			return;
-		while (*str)
-		{
-			if(*str == '\n')
-			{
-				cursorX = cursorBaseX;
-				cursorY += font->charHeight;
-			}
-			else
-				printV(*str);
-			str++;
-		}
-	}
-
-void print(const char ch)
+	void print(const char ch, char size=1, bool is_vertical=0)
 	{
 		if (!font)
 			return;
@@ -238,13 +177,18 @@ void print(const char ch)
 			drawChar(cursorX, cursorY, ch);
 		else
 			drawChar(cursorX, cursorY, ' ');		
-		cursorX += font->charWidth * size;
-		if (cursorX + font->charWidth * size> xres)
+		is_vertical ? cursorY += font->charHeight * size : cursorX += font->charWidth * size;
+		if (is_vertical ? cursorY + font->charHeight * size > yres : cursorX + font->charWidth * size > xres)
 		{
+			is_vertical ? {
+			cursorY = cursorBaseY;
+			cursorX += font->charWidth * size;
+			} : {
 			cursorX = cursorBaseX;
 			cursorY += font->charHeight * size;
 			if(autoScroll && cursorY + font->charHeight * size > yres)
 				scroll(cursorY + font->charHeight * size - yres, backColor);
+			}
 		}
 	}
 
@@ -254,7 +198,7 @@ void print(const char ch)
 		print("\n");
 	}
 
-	void print(const char *str)
+	void print(const char *str, char size=1, bool is_vertical=0)
 	{
 		if (!font)
 			return;
@@ -263,10 +207,10 @@ void print(const char ch)
 			if(*str == '\n')
 			{
 				cursorX = cursorBaseX;
-				cursorY += font->charHeight;
+				cursorY += font->charHeight*size;
 			}
 			else
-				print(*str);
+				print(*str, size, is_vertical);
 			str++;
 		}
 	}
