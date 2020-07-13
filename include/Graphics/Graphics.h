@@ -181,7 +181,7 @@ class Graphics: public ImageDrawer
 		if (is_vertical ? cursorY + font->charHeight * size > yres : cursorX + font->charWidth * size > xres)
 		{
 			if(is_vertical){
-			cursorY = cursorBaseY;
+			cursorY = cursorBaseX;
 			cursorX += font->charWidth * size;
 			}
 			else{
