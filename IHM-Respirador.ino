@@ -18,6 +18,8 @@ float u=0;
 VGA3BitI vga;
 #include "Itens.h"
 
+Graph grafico1, grafico2, grafico3;
+
 void setup()
 {
 	Serial.begin(9600);
@@ -34,107 +36,30 @@ void setup()
 	//show the remaining memory
 	//vga.print("AJUSTES");
 	vga.setFrameBufferCount(1);
-	/*
-	vga.setTextColor(0x9);
-	vga.setCursor(725, 500);
-	vga.print("t");
-	vga.setCursor(175, 400);
-	vga.printV("P");
-	vga.show();
-	vga.setCursor(725, 200);
-	vga.print("t");
-	vga.setCursor(175, 85);
-	vga.printV("Vi");
-	vga.setCursor(40, 20);
-	*/
+
+	print("Poe um menu",2,false);
+	print("E tela toche",4,true);
+	
+	SetupGraph(&grafico1,25,25,450,150);
+	SetupGraph(&grafico2,25,175,450,150);
+	SetupGraph(&grafico3,25,225,450,150);
 
 	DrawBackground(800,600,0xf,0xe);
 	DrawLogo(690, 10);
 
-	//eixos
-	/*for(short i =0; i < 801; i++){
-		for(short j =0; j < 250; j++){
-			vga.dot(j,i,0x0);
-		}
-	}
-
-	for(short i =0; i < 801; i++){
-		vga.dot(250,i,0xf);
-	}
-	for(short i =0; i < 250; i++){
-		vga.dot(i,150,0xf);
-		vga.dot(i,300,0xf);
-		vga.dot(i,450,0xf);
-	}*/
 }
+
+unsigned int counter1 = 0, counter2 = 150, counter3 = 300;
+float t=0.0f;
 
 void loop()
 {
-	/*float A=100; //amplitude
-	float B=100; //frequencia
-	short xmin=300;
-	short xmax=750;
-	short ymin=315;
-	short ymax=575;
-	short yoffset=130;
-	short xoffset=130;
-	float a=100; //amplitude
-	float b=100; //frequencia
-	short Xmin=300;
-	short Xmax=750;
-	short Ymin=25;
-	short Ymax=285;
-	short Yoffset=130;
-	short Xoffset=130;
+	RedrawGraph(&grafico1,counter,sin((float)counter1/450+t);
+	RedrawGraph(&grafico2,counter,sin((float)counter2/450+t);
+	RedrawGraph(&grafico3,counter,sin((float)counter3/450+t);
 
-	for(short i = ymin; i < ymax; i++){
-		vga.dot(xmin - 1,i,0xd);
-	}
-	for(short i = xmin; i < xmax; i++){
-		vga.dot(i,ymin+yoffset,0xd);
-	}
-
-	for(short i = Ymin; i < Ymax; i++){
-		vga.dot(Xmin - 1,i,0xd);
-	}
-
-	for(short i = Xmin; i < Xmax; i++){
-		vga.dot(i,Ymin+Yoffset,0xd);
-	}
-
-	for(short i = 0; i < xmax-xmin && i < Xmax-Xmin ; i++){
-		int yres=ymin+yoffset+(int)(-A*sin(t+(float)(i+xoffset)/B));
-		int Yres=Ymin+Yoffset+(int)(-a*sin(u+(float)(i+Xoffset)/b));
-
-		if(yres>ymax)
-		yres=ymax;
-		if(yres<ymin)
-		yres=ymin;
-		if(Yres>Ymax)
-		Yres=Ymax;
-		if(Yres<Ymin)
-		Yres=Ymin;
-
-		if(i>0)
-		for(int k = ymin; k< ymax; k++)
-		if(k!=yoffset+ymin)
-		vga.dot(xmin+i,k,0x8);
-
-		if(i>0)
-		for(int k = Ymin; k< Ymax; k++)
-		if(k!=Yoffset+Ymin)
-		vga.dot(Xmin+i,k,0x8);
-
-		vga.dot(xmin+i,yres,0x8+(int)(0x7*t/6.2830));
-		vga.dot(Xmin+i,Yres,0x8+(int)(0x7*u/6.2830));
-		}
-
-		t+=0.1;
-		u+=0.2;
-
-		if(t>2*3.1415){
-		t=0;}
-		if(u>2*3.1415){
-		u=0;
-	}*/
+	t=t%6.28f+0.01;
+	counter1=counter1%450+1;
+	counter2=counter2%450+1;
+	counter3=counter3%450+1;
 }
