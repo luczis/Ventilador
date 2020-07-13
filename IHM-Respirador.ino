@@ -2,8 +2,8 @@
 // Projeto para uma interface Homem-Maquina desenvolvida a fim de ser utilizada para um respirador artificial,
 // voltado para um ESP32. Desenvolvido em nome da UTFPR-Campus Apucarana.
 
-#include "include/ESP32Lib.h"
-#include "include/Ressources/Font8x8.h"
+#include "ESP32Lib.h"
+#include "Ressources/Font8x8.h"
 
 //pin configuration
 const int redPin = 14;
@@ -16,7 +16,7 @@ float t=0;
 float u=0;
 
 VGA3BitI vga;
-#include "include/Itens.h"
+#include "Itens.h"
 
 void setup()
 {
