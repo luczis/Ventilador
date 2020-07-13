@@ -180,10 +180,11 @@ class Graphics: public ImageDrawer
 		is_vertical ? cursorY += font->charHeight * size : cursorX += font->charWidth * size;
 		if (is_vertical ? cursorY + font->charHeight * size > yres : cursorX + font->charWidth * size > xres)
 		{
-			is_vertical ? {
+			if(is_vertical){
 			cursorY = cursorBaseY;
 			cursorX += font->charWidth * size;
-			} : {
+			}
+			else{
 			cursorX = cursorBaseX;
 			cursorY += font->charHeight * size;
 			if(autoScroll && cursorY + font->charHeight * size > yres)
