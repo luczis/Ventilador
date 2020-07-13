@@ -164,7 +164,7 @@ class Graphics: public ImageDrawer
 					{
 						for(char j = 0; j < size; j++)
 					    	{
-						    is_vertical ? dorMix(py + i + x, px + j + y, backColor) : dotMix(px + i + x, py + j + y, backColor);
+						    is_vertical ? dotMix(py + i + x, px + j + y, backColor) : dotMix(px + i + x, py + j + y, backColor);
                         			}
 					}
 	}
