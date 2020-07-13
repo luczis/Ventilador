@@ -17,9 +17,9 @@ void DrawLogo(short xpos, short ypos, char size=1){
 		for(j=0;j<80;j++){
 			for(k=0;k<size;k++){
 				for(l=0;l<size;l++){
-					if(Logo[i+100*j]==0xb)
-						vga.dot(xpos+i+k,ypos+j+l,0xb);
 					if(Logo[i+100*j]==0x8)
+						vga.dot(xpos+i+k,ypos+j+l,0xb);
+					if(Logo[i+100*j]==0xb)
 						vga.dot(xpos+i+k,ypos+j+l,0x8);
 				}
 			}
