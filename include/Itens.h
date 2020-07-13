@@ -45,7 +45,7 @@ void DrawLogo(short xpos, short ypos, char size=1){
 	}
 }
 
-void SetupGraphic(Graph* grafico, short xpos, short ypos, short xsize, short ysize){
+void SetupGraph(Graph* grafico, short xpos, short ypos, short xsize, short ysize){
 	short i=0,j=0;
 	grafico->xpos=xpos;
 	grafico->ypos=ypos;
@@ -65,7 +65,7 @@ void SetupGraphic(Graph* grafico, short xpos, short ypos, short xsize, short ysi
 	}
 }
 
-void RedrawGraphic(Graph* grafico, short xdatanum, float newy){
+void RedrawGraph(Graph* grafico, short xdatanum, float newy){
 	short i=0, yres=0, ymax, ymin;
 	xdatanum = xdatanum%grafico->xdatasize;
 	ymax = grafico->ypos;
