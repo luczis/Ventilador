@@ -3,7 +3,6 @@
 // voltado para um ESP32. Desenvolvido em nome da UTFPR-Campus Apucarana.
 
 #include "include/ESP32Lib.h"
-#include "include/Itens.h"
 #include "include/Ressources/Font8x8.h"
 
 //pin configuration
@@ -15,6 +14,9 @@ const int vsyncPin = 33;
 
 float t=0;
 float u=0;
+
+VGA3BitI vga;
+#include "include/Itens.h"
 
 void setup()
 {
