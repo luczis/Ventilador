@@ -62,7 +62,9 @@ char* int2array(int num){
 	}
 	char n;
 	num ? n=log10(num)+1+sig:n=1;
-	char* numArray=(char*)calloc(n+1,sizeof(char));
+	static char* numArray;
+	free(numArray);
+	numArray=(char*)calloc(n+1,sizeof(char));
 	if(sig)
 		numArray[0]='-';
 	for(i=1;i<=n-sig;++i,num/=10)
@@ -77,12 +79,16 @@ char* float2array(float num){
 	if(num<0){
 		num=-num; sig=1;
 	}
-	char decimals=3-log10(num);
+	char decimals;
+	num>0.1f ? decimals=4-sig-log10(num):decimals=4-sig;
 	if(decimals<0)
 		decimals=0;
 	int num_i=(int)(pow(10,decimals)*num);
-	char n=log10(num_i)+2+sig;
-	char* numArray=(char*)calloc(n+1,sizeof(char));
+	char n;
+	num>0.1f ? n=log10(num_i)+2+sig:n=decimals+1+sig;
+	static char* numArray;
+	free(numArray);
+	numArray=(char*)calloc(n+1,sizeof(char));
 	if(sig)
 		numArray[0]='-';
 	for(i=1;i<=decimals;++i,num_i/=10){

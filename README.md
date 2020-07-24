@@ -14,7 +14,7 @@ Pronto! Na teoria o microcontrolador deve mostrar imagens no seu monitor VGA.
 
 # Bugs conhecidos
 
--Tela desliga toda segunda vez que counter1 chega a 350
+<del>Tela desliga toda segunda vez que counter1 chega a 350</del>
 
 # TODO
 

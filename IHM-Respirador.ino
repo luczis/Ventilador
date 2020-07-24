@@ -14,7 +14,7 @@ const int hsyncPin = 32;
 const int vsyncPin = 33;
 
 unsigned long time0;
-#define MIN_MIL 20  //O tempo minimo, em miliseg para atualizar a tela
+#define MIN_MIL 10  //O tempo minimo, em miliseg para atualizar a tela
 
 VGA3BitI vga;
 #include "include/Itens.h"
@@ -32,7 +32,7 @@ void SerialTaskFunction(void* parameters);
 void setup()
 {
   //Configuracoes Diversas
-	Serial.begin(115200);
+	// Serial.begin(115200);
 	randomSeed(analogRead(0));
 
   //Configuracoes VGA
@@ -83,12 +83,13 @@ void setup()
   vga.print("Deus leva",0xf,0x0,2);
 
   //Definicao de tarefas
-  xTaskCreatePinnedToCore(DrawingTaskFunction, "DrawingTask", 10000, NULL, PRIORITY_1, &DrawingTask, CORE_0);
-  xTaskCreatePinnedToCore(SerialTaskFunction, "SerialTask", 10000, NULL, PRIORITY_0, &SerialTask, CORE_1);
+  xTaskCreatePinnedToCore(DrawingTaskFunction, "DrawingTask", 20000, NULL, PRIORITY_1, &DrawingTask, CORE_0);
+  //xTaskCreatePinnedToCore(SerialTaskFunction, "SerialTask", 10000, NULL, PRIORITY_0, &SerialTask, CORE_1);
 }
 
 unsigned int counter1 = 0;
 float t=0.0f;
+unsigned int value1 = 0;
 
 //Tarefa utilizada para desenhar atualizacoes
 void DrawingTaskFunction(void* parameters){
@@ -101,29 +102,28 @@ void DrawingTaskFunction(void* parameters){
 	  t>6.28 ? t=0 : t+=0.01;
     counter1>=450 ? counter1=0 : counter1++;
 
-    switch(counter1%50){
-      case 0:
+    if(counter1%10==0){
+        value1++;
         botao1.is_selected = random(2);
         botao2.is_selected = random(2);
         botao3.is_selected = random(2);
         botao4.is_selected = random(2);
         botao5.is_selected = random(2);
-        RedrawButton(&botao1, t);
-        RedrawButton(&botao2, t);
-        RedrawButton(&botao3, t);
-        RedrawButton(&botao4, t);
-        RedrawButton(&botao5, t);
+        RedrawButton(&botao1, 0.000f);
+        RedrawButton(&botao2, value1);
+        RedrawButton(&botao3, value1);
+        RedrawButton(&botao4, value1);
+        RedrawButton(&botao5, value1);
         RedrawBox(&caixa1, counter1);
-        RedrawBox(&caixa2, counter1);
+        RedrawBox(&caixa2, t);
         RedrawBox(&caixa3, t);
-        RedrawBox(&caixa4, counter1);
-        RedrawBox(&caixa5, counter1);
-        RedrawBox(&caixa6, counter1);
+        RedrawBox(&caixa4, t);
+        RedrawBox(&caixa5, t);
+        RedrawBox(&caixa6, t);
         RedrawBox(&caixa7, t);
         RedrawBox(&caixa8, t);
         RedrawBox(&caixa9, t);
         RedrawBox(&caixa10, t);
-        break;
     }
     showFPS();
     while(millis()-time0 < MIN_MIL)
