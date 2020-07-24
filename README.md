@@ -27,4 +27,3 @@ Pronto! Na teoria o microcontrolador deve mostrar imagens no seu monitor VGA.
 Bruno Gabriel da Silva
 
 Lucas Zischler
-
