@@ -141,7 +141,7 @@ class Graphics: public ImageDrawer
 		cursorY = y;
 	}
 
-	virtual void drawChar(int x, int y, int ch, char size, bool is_vertical)
+	virtual void drawChar(int x, int y, int ch, char char_color=0xf, char back_color=0x0, char size = 1, bool is_vertical = false, short x_min_trim=0, short x_max_trim=0)
 	{
 		if (!font)
 			return;
@@ -154,29 +154,37 @@ class Graphics: public ImageDrawer
 				if (*(pix++))
 					for(char i = 0; i < size; i++)
 					{
+						if(x_max_trim && px+i+x>x_max_trim)
+							break;
+						if(x_min_trim && px+i+x<x_min_trim)
+							break;
 						for(char j = 0; j < size; j++)
 						{
-						    is_vertical ? dotMix(py + i + x, px + j + y, frontColor) : dotMix(px + i + x, py + j + y, frontColor);
+						    is_vertical ? dotMix(py + i + x, px + j + y, char_color) : dotMix(px + i + x, py + j + y, char_color);
                         			}
 					}
 				else
                 			for(char i = 0; i < size; i++)
 					{
+						if(x_max_trim && px+i+x>x_max_trim)
+							break;
+						if(x_min_trim && px+i+x<x_min_trim)
+							break;
 						for(char j = 0; j < size; j++)
 					    	{
-						    is_vertical ? dotMix(py + i + x, px + j + y, backColor) : dotMix(px + i + x, py + j + y, backColor);
+						    is_vertical ? dotMix(py + i + x, px + j + y, back_color) : dotMix(px + i + x, py + j + y, back_color);
                         			}
 					}
 	}
 
-	void print(const char ch, char size=1, bool is_vertical=0)
+	void print(const char ch, char char_color=0xf, char back_color=0x0, char size=1, bool is_vertical=0, short x_min_trim=0, short x_max_trim=0)
 	{
 		if (!font)
 			return;
 		if (font->valid(ch))
-			drawChar(cursorX, cursorY, ch);
+			drawChar(cursorX, cursorY, ch, char_color, back_color, size, is_vertical, x_min_trim, x_max_trim);
 		else
-			drawChar(cursorX, cursorY, ' ');		
+			drawChar(cursorX, cursorY, ' ', char_color, back_color, size, is_vertical, x_min_trim, x_max_trim);		
 		is_vertical ? cursorY += font->charHeight * size : cursorX += font->charWidth * size;
 		if (is_vertical ? cursorY + font->charHeight * size > yres : cursorX + font->charWidth * size > xres)
 		{
@@ -199,7 +207,7 @@ class Graphics: public ImageDrawer
 		print("\n");
 	}
 
-	void print(const char *str, char size=1, bool is_vertical=0)
+	void print(const char *str, char char_color=0xf, char back_color=0x0, char size=1, bool is_vertical=0, short x_min_trim=0, short x_max_trim=0)
 	{
 		if (!font)
 			return;
@@ -211,9 +219,49 @@ class Graphics: public ImageDrawer
 				cursorY += font->charHeight*size;
 			}
 			else
-				print(*str, size, is_vertical);
+				print(*str, char_color, back_color, size, is_vertical, x_min_trim, x_max_trim);
 			str++;
 		}
+	}
+
+	void printCenter(char *str, short xmin, short xmax, char char_color=0xf, char back_color=0x0, char size=1){
+		if(xmax < xmin)
+			return;
+		bool flag_newline=0;
+		char* tmp_str=str;
+		char str_size=0, max_c=0;
+		while(*tmp_str!='\0' && max_c < 100){
+			if(*tmp_str=='\n')
+				flag_newline=1;
+			tmp_str++; str_size++; max_c++;
+		}
+		bool to_long=str_size*font->charWidth*size>xmax-xmin;
+		if(flag_newline||to_long){
+			tmp_str=str;
+			for(char i=0;i<str_size;i++, tmp_str++){
+				if(*tmp_str=='\n'||(*tmp_str==' '&&to_long)){
+					char* new_str=(char*)calloc(i+1,sizeof(char));
+					for(char j=0;j<i;j++)
+						new_str[j]=str[j];
+					new_str[i]='\0';
+					printCenter(new_str, xmin, xmax, char_color, back_color, size);
+					delete[] new_str;
+					cursorY+=font->charHeight*size;
+					char* new_str2=(char*)calloc(str_size-i+1,sizeof(char));
+					for(char j=0;j<str_size-i;j++)
+						new_str2[j]=str[i+1+j];
+					new_str2[str_size]='\0';
+					printCenter(new_str2, xmin, xmax, char_color, back_color, size);
+					return;
+				}
+			}
+		}
+		if(str_size==0)
+			return;
+		if(str_size*font->charWidth*size>xmax-xmin)
+			return;
+		cursorX=(xmax-xmin-font->charWidth*size*str_size)/2+xmin;
+		print(str, char_color, back_color, size, 0, xmin, xmax);
 	}
 
 	void println(const char *str)
@@ -222,131 +270,53 @@ class Graphics: public ImageDrawer
 		print("\n");
 	}
 
-	void print(long number, int base = 10, int minCharacters = 1)
+	void print(long number, char char_color=0xf, char back_color=0x0, char size=1, bool is_vertical=0)
 	{
-		if(minCharacters < 1)
-			minCharacters = 1;
 		bool sign = number < 0;
 		if (sign)
 			number = -number;
-		const char baseChars[] = "0123456789ABCDEF";
+		const char baseChars[] = "0123456789";
 		char temp[33];
 		temp[32] = 0;
 		int i = 31;
 		do
 		{
-			temp[i--] = baseChars[number % base];
-			number /= base;
+			temp[i--] = baseChars[number % 10];
+			number /= 10;
 		} while (number > 0);
 		if (sign)
 			temp[i--] = '-';
-		for (; i > 31 - minCharacters; i--)
+		for (; i > 30; i--)
 			temp[i] = ' ';
-		print(&temp[i + 1]);
+		print(&temp[i + 1], char_color, back_color, size, is_vertical);
 	}
 
-	void print(unsigned long number, int base = 10, int minCharacters = 1)
+	void print(double number, unsigned char fractionalDigits = 2, char char_color=0xf, char back_color=0x0, char size=1, bool is_vertical=0)
 	{
-		if(minCharacters < 1)
-			minCharacters = 1;
-		const char baseChars[] = "0123456789ABCDEF";
-		char temp[33];
-		temp[32] = 0;
-		int i = 31;
-		do
-		{
-			temp[i--] = baseChars[number % base];
-			number /= base;
-		} while (number > 0);
-		for (; i > 31 - minCharacters; i--)
-			temp[i] = ' ';
-		print(&temp[i + 1]);
-	}	
-
-	void println(long number, int base = 10, int minCharacters = 1)
-	{
-		print(number, base, minCharacters); print("\n");
-	}
-
-	void println(unsigned long number, int base = 10, int minCharacters = 1)
-	{
-		print(number, base, minCharacters); print("\n");
-	}
-
-	void print(int number, int base = 10, int minCharacters = 1)
-	{
-		print(long(number), base, minCharacters);
-	}
-
-	void println(int number, int base = 10, int minCharacters = 1)
-	{
-		println(long(number), base, minCharacters);
-	}
-
-	void print(unsigned int number, int base = 10, int minCharacters = 1)
-	{
-		print((unsigned long)(number), base, minCharacters);
-	}
-
-	void println(unsigned int number, int base = 10, int minCharacters = 1)
-	{
-		println((unsigned long)(number), base, minCharacters);
-	}
-
-	void print(short number, int base = 10, int minCharacters = 1)
-	{
-		print(long(number), base, minCharacters);
-	}
-
-	void println(short number, int base = 10, int minCharacters = 1)
-	{
-		println(long(number), base, minCharacters);
-	}
-
-	void print(unsigned short number, int base = 10, int minCharacters = 1)
-	{
-		print(long(number), base, minCharacters);
-	}
-
-	void println(unsigned short number, int base = 10, int minCharacters = 1)
-	{
-		println(long(number), base, minCharacters);
-	}
-
-	void print(unsigned char number, int base = 10, int minCharacters = 1)
-	{
-		print(long(number), base, minCharacters);
-	}
-
-	void println(unsigned char number, int base = 10, int minCharacters = 1)
-	{
-		println(long(number), base, minCharacters);
-	}
-
-	void println()
-	{
-		print("\n");
-	}
-
-	void print(double number, int fractionalDigits = 2, int minCharacters = 1)
-	{
+		if(fractionalDigits > 6)
+			fractionalDigits=6;
 		long p = long(pow(10, fractionalDigits));
 		long long n = (double(number) * p + 0.5f);
-		print(long(n / p), 10, minCharacters - 1 - fractionalDigits);
+		print(long(n / p), char_color, back_color, size, is_vertical);
 		if(fractionalDigits)
 		{
-			print(".");
-			for(int i = 0; i < fractionalDigits; i++)
+			print(".", char_color, back_color, size, is_vertical);
+			for(char i = 0; i < fractionalDigits; i++)
 			{
 				p /= 10;
-				print(long(n / p) % 10);
+				print(long(n / p) % 10, char_color, back_color, size, is_vertical);
 			}
 		}
 	}
 
-	void println(double number, int fractionalDigits = 2, int minCharacters = 1)
+	void print(unsigned long number, char char_color=0xf, char back_color=0x0, char size=1, bool is_vertical=0){print((long)number, char_color, back_color, size, is_vertical);}
+	void print(int number, char char_color=0xf, char back_color=0x0, char size=1, bool is_vertical=0){print((long)number, char_color, back_color, size, is_vertical);}
+	void print(unsigned int number, char char_color=0xf, char back_color=0x0, char size=1, bool is_vertical=0){print((long)number, char_color, back_color, size, is_vertical);}
+	void print(short number, char char_color=0xf, char back_color=0x0, char size=1, bool is_vertical=0){print((long)number, char_color, back_color, size, is_vertical);}
+	void print(unsigned short number, char char_color=0xf, char back_color=0x0, char size=1, bool is_vertical=0){print((long)number, char_color, back_color, size, is_vertical);}
+	
+	void println()
 	{
-		print(number, fractionalDigits, minCharacters); 
 		print("\n");
 	}
 

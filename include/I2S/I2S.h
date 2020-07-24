@@ -63,3 +63,5 @@ class I2S
   private:
 	static void IRAM_ATTR interruptStatic(void *arg);
 };
+
+#include "I2S.cpp"

@@ -4,16 +4,26 @@ Projeto para uma interface Homem-Máquina desenvolvida a fim de ser utilizada pa
 
 # Como utilizar
 
-Instale a biblioteca para o ESP32: https://github.com/bitluni/ESP32Lib
+Faça download dos arquivos, e certifique-se de que tudo esta em uma pasta de mesmo nome do arquivo .ino (O Arduino IDE reclama caso contrário).
 
-Copie o conteúdo da pasta "include", na pasta "src" de onde foi instalado a biblioteca
+Compile o .ino para o ESP32 (Você precisa de arquivos adicionais para compilar pra esta placa, não está inclusa no pacote base do Arduino IDE).
+
+*Arquivo .json indicado para o ESP32: https://dl.espressif.com/dl/package_esp32_index.json*
+
+Pronto! Na teoria o microcontrolador deve mostrar imagens no seu monitor VGA.
+
+# Bugs conhecidos
+
+-Tela desliga toda segunda vez que counter1 chega a 350
+
+# TODO
+
+-Incrementar funções para leitura de botões e encoder;
+
+-Opção para aspecto 16:9 (Atualmente somente para 4:3)
 
 # Colaboradores
 
 Bruno Gabriel da Silva
 
 Lucas Zischler
-
-# TODO
-
--Incrementar funções para leitura de botões e encoder;
