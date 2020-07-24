@@ -8,12 +8,12 @@ Bruno Gabriel da Silva
 
 Lucas Zischler
 
+# Bugs conhecidos
+
+-Tela desliga toda segunda vez que counter1 chega a 350
+
 # TODO
 
--Nova função para rendenizar texto;
+-Incrementar funções para leitura de botões e encoder;
 
--Limitar os FPS;
-
--Converter gráficos e caixas de informações pra classes ou funções;
-
--Encrementar funções para leitura de botões e encoder;
+-Opção para aspecto 16:9 (Atualmente somente para 4:3)

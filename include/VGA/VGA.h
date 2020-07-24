@@ -97,3 +97,5 @@ class VGA : public I2S
 	virtual void vSync();
 	virtual void interruptPixelLine(int y, unsigned long *pixels, unsigned long syncBits);
 };
+
+#include "VGA.cpp"

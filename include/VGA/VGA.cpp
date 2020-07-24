@@ -9,7 +9,6 @@
 		https://github.com/bitluni
 		http://bitluni.net
 */
-#include "VGA.h"
 
 //hfront hsync hback pixels vfront vsync vback lines divy pixelclock hpolaritynegative vpolaritynegative
 const Mode VGA::MODE320x480(8, 48, 24, 320, 11, 2, 31, 480, 1, 12587500, 1, 1);

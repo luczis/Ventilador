@@ -19,3 +19,12 @@
 #include "Graphics/Animation.h"
 #include "Controller/GameControllers.h"
 #include "Audio/AudioOutput.h"
+
+#define CORE_0 0
+#define CORE_1 1
+
+#define PRIORITY_0 0
+#define PRIORITY_1 1
+#define PRIORITY_2 2
+#define PRIORITY_3 3
+
