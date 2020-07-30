@@ -14,8 +14,6 @@ Pronto! Na teoria o microcontrolador deve mostrar imagens no seu monitor VGA.
 
 # Bugs conhecidos
 
-<del>Tela desliga toda segunda vez que counter1 chega a 350</del>
-
 # TODO
 
 -Incrementar funções para leitura de botões e encoder;
