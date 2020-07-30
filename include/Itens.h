@@ -335,4 +335,9 @@ void RedrawBox(Box* caixa, unsigned short value){
 void RedrawBox(Box* caixa, float value){
 	RedrawBox(caixa, float2array(value));}
 
+void SetupLegenda(int posix, int posiy, char* text, char color=0xf, char backcolor=0x0, char size=1, bool is_vertical=0){
+	vga.setCursor(posix,posiy);
+	vga.print(text,color,backcolor,size,is_vertical);
+}
+
 
