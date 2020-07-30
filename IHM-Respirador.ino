@@ -38,7 +38,6 @@ void setup()
   //Configuracoes VGA
 	vga.init(vga.MODE800x600, redPin, greenPin, bluePin, hsyncPin, vsyncPin);
 	vga.setFont(Font6x8);
-	vga.setCursor(10, 10);
 	vga.setTextColor(0x8);
 	vga.setFrameBufferCount(1);
 
@@ -54,6 +53,16 @@ void setup()
 	SetupGraph(&grafico1,20,25,450,150, "Sine Wave", 2);
 	SetupGraph(&grafico2,20,225,450,150, "Sine Wave 2", 2);
 	SetupGraph(&grafico3,20,425,450,150, "Foo Bar Baz Random", 2);
+  
+  //eixo x
+  SetupLegenda(8, 25,"UM",0xf,0x0,1,1);
+  SetupLegenda(8, 225,"UM",0xf,0x0,1,1);
+  SetupLegenda(8, 425,"UM",0xf,0x0,1,1);
+  //eixo y
+  SetupLegenda(450, 180,"UM",0xf,0x0,1,0);
+  SetupLegenda(450, 380,"UM",0xf,0x0,1,0);
+  SetupLegenda(450, 580,"UM",0xf,0x0,1,0);
+  
 
   //Configuracoes de caixas
   SetupBox(&caixa1, 490, 100, 95, 80, "FooBarBaz",123,"Km/h");
@@ -78,9 +87,9 @@ void setup()
   //vga.setTextColor(0xb);
   vga.print("BG-Mister e LZ-Mister",0xf,0x0,2);
   vga.setCursor(500,25);
-  vga.print("A gente constroi",0xf,0x0,2);
+  vga.print("A gente constroi,",0xf,0x0,2);
   vga.setCursor(530,45);
-  vga.print("Deus leva",0xf,0x0,2);
+  vga.print("Deus que leva",0xf,0x0,2);
 
   //Definicao de tarefas
   xTaskCreatePinnedToCore(DrawingTaskFunction, "DrawingTask", 20000, NULL, PRIORITY_1, &DrawingTask, CORE_0);
