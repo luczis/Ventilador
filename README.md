@@ -20,7 +20,11 @@ Pronto! Na teoria o microcontrolador deve mostrar imagens no seu monitor VGA.
 
 -Incrementar funções para leitura de botões e encoder;
 
--Opção para aspecto 16:9 (Atualmente somente para 4:3)
+-Incrementar leitura de 3 A/Ds (1.1-3.9V);
+
+-Habilitar interrupções;
+
+-Opção para aspecto 16:9 (Atualmente somente para 4:3).
 
 # Colaboradores
 
