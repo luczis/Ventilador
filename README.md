@@ -22,11 +22,11 @@ Pronto! Na teoria o microcontrolador deve mostrar imagens no seu monitor VGA.
 
 -Incrementar funções para leitura de botões e encoder;
 
--Configurar GPIOs para botões, e algumas saída;
+<del>Configurar GPIOs para botões, e algumas saída;</del>
 
--Incrementar leitura de 3 A/Ds (1.1-3.9V) (Evitar pinos que possuam interrupções);
+<del>Incrementar leitura de 3 A/Ds (0-3.0V)</del>
 
--Habilitar interrupções;
+<del>Habilitar interrupções;</del>
 
 -Opção para aspecto 16:9 (Atualmente somente para 4:3).
 
