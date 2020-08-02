@@ -10,6 +10,10 @@ Compile o .ino para o ESP32 (Você precisa de arquivos adicionais para compilar 
 
 *Arquivo .json indicado para o ESP32: https://dl.espressif.com/dl/package_esp32_index.json*
 
+A imagem abaixo mostra quais pinos do ESP32 devem ser conectados no conector VGA.
+
+![14 R, 19 G, 27 B, 26 VSYNC, 25 HSYNC](./VGA.svg)
+
 Pronto! Na teoria o microcontrolador deve mostrar imagens no seu monitor VGA.
 
 # Bugs conhecidos
