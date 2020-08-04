@@ -267,13 +267,13 @@ void RedrawButton(Button* botao, char* value){
 	vga.printCenter(value, botao->xpos+botao->border_size, botao->xpos+botao->xsize-botao->border_size, botao->m_text_color, botao->back_color, botao->m_text_size);
 	for(i=0;i<botao->xsize;i++)
 		for(j=0;j<botao->border_size;j++){
-			vga.dot(botao->xpos+i,botao->ypos+j,botao->is_selected ? botao->border_default_color : botao->border_selected_color);
-			vga.dot(botao->xpos+i,botao->ypos+botao->ysize-botao->border_size+j,botao->is_selected ? botao->border_default_color : botao->border_selected_color);
+			vga.dot(botao->xpos+i,botao->ypos+j,botao->is_selected ? botao->border_selected_color : botao->border_default_color);
+			vga.dot(botao->xpos+i,botao->ypos+botao->ysize-botao->border_size+j,botao->is_selected ? botao->border_selected_color : botao->border_default_color);
 		}
 	for(i=0;i<botao->ysize;i++)
 		for(j=0;j<botao->border_size;j++){
-			vga.dot(botao->xpos+j,botao->ypos+i,botao->is_selected ? botao->border_default_color : botao->border_selected_color);
-			vga.dot(botao->xpos+j+botao->xsize-botao->border_size,botao->ypos+i,botao->is_selected ? botao->border_default_color : botao->border_selected_color);
+			vga.dot(botao->xpos+j,botao->ypos+i,botao->is_selected ? botao->border_selected_color : botao->border_default_color);
+			vga.dot(botao->xpos+j+botao->xsize-botao->border_size,botao->ypos+i,botao->is_selected ? botao->border_selected_color : botao->border_default_color);
 		}
 }
 void RedrawButton(Button* botao, int value){

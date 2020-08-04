@@ -17,9 +17,12 @@ const int adc0pin = 33;
 const int adc1pin = 34;
 const int adc2pin = 35;
 const int int0pin = 23;
+const int encbut0pin = 15;
 const int button0pin = 16;
 const int button1pin = 17;
 const int button2pin = 18;
+const int encApin = 4;
+const int encBpin = 5;
 
 unsigned long time0;
 #define MIN_MIL 10  //O tempo minimo, em miliseg para atualizar a tela
@@ -32,11 +35,14 @@ Box caixa1, caixa2, caixa3, caixa4, caixa5, caixa6, caixa7, caixa8, caixa9, caix
 Button botao1, botao2, botao3, botao4, botao5;
 
 TaskHandle_t DrawingTask;
+TaskHandle_t EncoderTask;
 TaskHandle_t SerialTask;
 
 void DrawingTaskFunction(void* parameters);
+void EncoderTaskFunction(void* parameters);
 void SerialTaskFunction(void* parameters);
 void ExternalInterrupt();
+void EncoderInterrupt();
 
 void setup()
 {
@@ -55,11 +61,16 @@ void setup()
   randomSeed(analogRead(0));
 
   //Configuracao de pinos
+  pinMode(encbut0pin, INPUT);
   pinMode(button0pin, INPUT);
   pinMode(button1pin, INPUT);
   pinMode(button2pin, INPUT);
   pinMode(int0pin ,INPUT_PULLUP);
+  pinMode(encApin ,INPUT_PULLDOWN);
+  pinMode(encBpin ,INPUT_PULLDOWN);
   attachInterrupt(digitalPinToInterrupt(int0pin), ExternalInterrupt, FALLING);
+  attachInterrupt(digitalPinToInterrupt(encApin), EncoderInterrupt, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(encBpin), EncoderInterrupt, CHANGE);
 
   //Configuracoes VGA
   vga.init(vga.MODE800x600, redPin, greenPin, bluePin, hsyncPin, vsyncPin);
@@ -119,18 +130,19 @@ void setup()
 
   //Definicao de tarefas
   xTaskCreatePinnedToCore(DrawingTaskFunction, "DrawingTask", 20000, NULL, PRIORITY_1, &DrawingTask, CORE_0);
-  xTaskCreatePinnedToCore(SerialTaskFunction, "SerialTask", 1000, NULL, PRIORITY_2, &SerialTask, CORE_1);
+  xTaskCreate(EncoderTaskFunction, "EncoderTask", 1000, NULL, PRIORITY_2, &EncoderTask);
+  xTaskCreatePinnedToCore(SerialTaskFunction, "SerialTask", 1000, NULL, PRIORITY_1, &SerialTask, CORE_1);
 }
 
 unsigned int counter1 = 0;
 float t = 0.0f;
 unsigned int value1 = 0;
 unsigned int adc0val = 0, adc1val = 0, adc2val = 0;
-unsigned int interrupt = 0;
+unsigned short decoder = 0, decoderPast = 0;
 
 //Inicia tarefas quando ocorre interrupcoes
 void ExternalInterrupt() {
-  vTaskResume(SerialTask);
+  //vTaskResume(SerialTask);
 }
 
 //Tarefa utilizada para desenhar atualizacoes
@@ -148,11 +160,31 @@ void DrawingTaskFunction(void* parameters) {
       value1++;
       adc0val = analogRead(adc0pin);
       adc1val = analogRead(adc1pin);
-      botao1.is_selected = digitalRead(button0pin);
-      botao2.is_selected = digitalRead(button1pin);
-      botao3.is_selected = digitalRead(button2pin);
-      botao4.is_selected = random(2);
-      botao5.is_selected = random(2);
+      if(decoder!=decoderPast){
+        decoderPast=decoder;
+            botao1.is_selected = false;
+            botao2.is_selected = false;
+            botao3.is_selected = false;
+            botao4.is_selected = false;
+            botao5.is_selected = false;
+        switch(decoder%5){
+          case 0:
+            botao1.is_selected = true;
+            break;
+          case 1:
+            botao2.is_selected = true;
+            break;
+          case 2:
+            botao3.is_selected = true;
+            break;
+          case 3:
+            botao4.is_selected = true;
+            break;
+          case 4:
+            botao5.is_selected = true;
+            break;
+        }
+      }
       RedrawButton(&botao1, 0.000f);
       RedrawButton(&botao2, value1);
       RedrawButton(&botao3, value1);
@@ -166,8 +198,8 @@ void DrawingTaskFunction(void* parameters) {
       RedrawBox(&caixa6, t);
       RedrawBox(&caixa7, adc1val);
       RedrawBox(&caixa8, adc1val);
-      RedrawBox(&caixa9, adc1val);
-      RedrawBox(&caixa10, interrupt);
+      RedrawBox(&caixa9, t);
+      RedrawBox(&caixa10, decoder);
     }
     showFPS();
     while (millis() - time0 < MIN_MIL)
@@ -175,12 +207,53 @@ void DrawingTaskFunction(void* parameters) {
   }
 }
 
+
+//Detecta interrupcoes do encoder
+void EncoderInterrupt() {
+  vTaskResume(EncoderTask);
+}
+
+uint8_t portVal = 0, mp = 0, i = 0, pastI = 0;
+//Tarefa para decodificar o encoder incremental
+void EncoderTaskFunction(void* parameters) {
+  while(1) {
+    portVal=(uint8_t)(*portInputRegister(digitalPinToPort(encApin)));
+    i = portVal&0x30;
+    if(i!=pastI)
+    {
+      pastI=i;
+      switch(i){
+        case 0x10:
+          if(mp==0)
+            mp=0b01;
+          break;
+        case 0x20:
+          if(mp==0)
+            mp=0b10;
+          break;
+        case 0x00:
+          if(mp==1)
+            decoder++;
+          else if(mp==2)
+            decoder--;
+          mp=0;
+          break;
+      }
+    }
+    vTaskSuspend(NULL);
+  }
+}
+
 //Tarefa somente de teste por enquanto
 void SerialTaskFunction(void* parameters) {
   while(1) {
-    interrupt++;
+    //Serial.println((int)(*portInputRegister(digitalPinToPort(encApin))));
+    //Serial.print('\t');
+    //gpiomap++;
+    //if(gpiomap>=(uint8_t*)0x3FF44FFF)
+    //  vTaskSuspend(NULL);
     vTaskDelay(100/portTICK_PERIOD_MS);
-    vTaskSuspend(NULL);
+    //vTaskSuspend(NULL);
   }
 }
 
