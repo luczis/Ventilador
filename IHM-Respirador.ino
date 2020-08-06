@@ -23,6 +23,15 @@ const int button1pin = 17;
 const int button2pin = 18;
 const int encApin = 4;
 const int encBpin = 5;
+const int ledadv0=32;
+const int ledadv1=21;
+const int ledadv2=22;
+const int buzzer = 13;
+float valmax=0;
+float val=0;
+float valbuz=0;
+int a=1;
+int contreset=0;
 
 unsigned long time0;
 #define MIN_MIL 10  //O tempo minimo, em miliseg para atualizar a tela
@@ -48,6 +57,7 @@ void setup()
 {
   //Configura serial
   Serial.begin(115200);
+  pinMode(buzzer, OUTPUT);
   
   //Utilizado para debug, mostra o que causou o ultimo reset do sistema
   Serial.println("CPU0 reset reason:");
@@ -257,4 +267,29 @@ void SerialTaskFunction(void* parameters) {
   }
 }
 
-void loop() {}
+void loop() {
+  //led
+  LoopLed(button0pin,ledadv0);
+  LoopLed(button1pin,ledadv1);
+  LoopLed(button2pin,ledadv2);
+
+  // buzzer
+   digitalWrite(buzzer, LOW);
+   Serial.println(button0pin);
+    if(valmax<=val)
+    {
+      digitalWrite(buzzer, HIGH);
+      delay(10);
+    }
+    if(valmax==0){
+    digitalWrite(buzzer, HIGH);
+    delay(1);
+    }
+    while(digitalRead(16)==HIGH && digitalRead(17)==HIGH){
+    contreset++;
+    if(contreset>=1500000){
+    ESP.restart();
+    }
+    }
+    contreset=0;
+}

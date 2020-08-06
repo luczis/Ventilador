@@ -340,4 +340,11 @@ void SetupLegenda(int posix, int posiy, char* text, char color=0xf, char backcol
 	vga.print(text,color,backcolor,size,is_vertical);
 }
 
-
+void LoopLed(const int button, const int led){
+	if(digitalRead(button)==HIGH){
+    		digitalWrite(led, HIGH);
+  	}
+  	else {
+    	digitalWrite(led, LOW);
+  	}
+}
