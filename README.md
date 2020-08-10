@@ -18,6 +18,8 @@ Pronto! Na teoria o microcontrolador deve mostrar imagens no seu monitor VGA.
 
 # Bugs conhecidos
 
+-Nenhum ... No momento ...
+
 # TODO
 
 -Tela inicial de setup de parâmetros;
