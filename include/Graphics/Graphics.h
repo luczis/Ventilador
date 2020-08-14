@@ -8,6 +8,8 @@
 		https://youtube.com/bitlunislab
 		https://github.com/bitluni
 		http://bitluni.net
+
+	With modifications from Lucas Zischler :)
 */
 #pragma once
 #include <stdlib.h>
@@ -225,6 +227,58 @@ class Graphics: public ImageDrawer
 	}
 
 	void printCenter(char *str, short xmin, short xmax, char char_color=0xf, char back_color=0x0, char size=1){
+		if((xmax < xmin)||(*str=='\0'))
+			return;
+		static char* new_str=(char*)calloc(100,sizeof(char));
+		bool flag_newline=0;
+		char* tmp_str=str;
+		char spc_cnt=0, str_size=0, max_c=0;
+		while(*tmp_str!='\0' && max_c < 100){
+			if(*tmp_str=='\n')
+				flag_newline=1;
+			if(*tmp_str==' ')
+				spc_cnt++;
+			tmp_str++; str_size++; max_c++;
+		}
+		bool to_long=str_size*font->charWidth*size>xmax-xmin;
+		char lines=1+(str_size*font->charWidth*size)/(xmax-xmin);
+		char spc_per_line=spc_cnt/lines;
+
+		// Neste momento e so possivel quebrar em no maximo 2 linhas
+		// Desculpe nao sei o motivo
+		// Se necessario atualizarei no futuro
+		// - Lucas
+		if(flag_newline||to_long){
+			spc_cnt=0;
+			tmp_str=str;
+			char pastPos=0;
+			for(char i=1; i<=lines; i++){
+				for(char j=0; j<str_size; j++){
+					if((str[j+pastPos]==' ')||(str[j+pastPos]=='\n')||(str[j+pastPos]=='\0')){
+						if(spc_cnt>=spc_per_line){
+							for(char k=0; k<j; k++)
+								new_str[k]=str[k+pastPos];
+							new_str[j]='\0';
+							pastPos=j+1;
+							printCenter(new_str, xmin, xmax, char_color, back_color, size);
+							cursorY+=font->charHeight*size;
+							spc_cnt=0;
+							j=str_size;
+						}
+						else
+							spc_cnt++;
+					}
+				}
+			}
+			return;
+		}
+		if(str_size*font->charWidth*size>xmax-xmin)
+			return;
+		cursorX=(xmax-xmin-font->charWidth*size*str_size)/2+xmin;
+		print(str, char_color, back_color, size, 0, xmin, xmax);
+	}
+
+/*	void printCenter(char *str, short xmin, short xmax, char char_color=0xf, char back_color=0x0, char size=1){
 		if(xmax < xmin)
 			return;
 		bool flag_newline=0;
@@ -256,13 +310,11 @@ class Graphics: public ImageDrawer
 				}
 			}
 		}
-		if(str_size==0)
-			return;
 		if(str_size*font->charWidth*size>xmax-xmin)
 			return;
 		cursorX=(xmax-xmin-font->charWidth*size*str_size)/2+xmin;
 		print(str, char_color, back_color, size, 0, xmin, xmax);
-	}
+	}*/
 
 	void println(const char *str)
 	{

@@ -1,6 +1,12 @@
+//
 // IHM-Respirador
 // Projeto para uma interface Homem-Maquina desenvolvida a fim de ser utilizada para um respirador artificial,
 // voltado para um ESP32. Desenvolvido em nome da UTFPR-Campus Apucarana.
+//
+// Colaboradores:
+// - Bruno Gabriel da Silva 
+// - Lucas Zischler
+//
 
 #include "include/ESP32Lib.h"
 #include "include/reset.h"
@@ -8,25 +14,8 @@
 #include "include/Fonts/Font6x8.h"
 
 //pin configuration
-const int redPin = 14;
-const int greenPin = 19;
-const int bluePin = 27;
-const int hsyncPin = 25;
-const int vsyncPin = 26;
-const int adc0pin = 33;
-const int adc1pin = 34;
-const int adc2pin = 35;
-const int int0pin = 23;
-const int encbut0pin = 15;
-const int button0pin = 16;
-const int button1pin = 17;
-const int button2pin = 18;
-const int encApin = 4;
-const int encBpin = 5;
-const int ledadv0=32;
-const int ledadv1=21;
-const int ledadv2=22;
-const int buzzer = 13;
+#include "include/pinout.h"
+
 float valmax=0;
 float val=0;
 float valbuz=0;
@@ -34,248 +23,671 @@ int a=1;
 int contreset=0;
 
 unsigned long time0;
-#define MIN_MIL 10  //O tempo minimo, em miliseg para atualizar a tela
+
+//Parametros de inicializacao
+float altura_paciente = 1.50f;
+float peso_paciente = 70;
+
+//Parametros do respirador
+float FiO2 = .21f;	//0.21	-	1.0 	%
+float PEEP = 0;		//0		-	20 		cm H2O
+float volIns = 50;	//50	-	700 	mL
+float flxIns = 0;	//0		-	70 		L/min
+float freRes = 8;	//8		-	40		RPM
+float tmpIns = 0.3f;//0.3	-	2.0		s
+float I_E = 1;		//
+
+//Alarmes
+int alrm_pressao = 100;
+int alrm_vazamento = 100;
+int alrm_queda_rede = 100;
+
+//Valores de incremento
+const float inc_freRes = 0.1f;
+const float inc_tmpIns = 0.01f;
+const int inc_alrm_pressao = 1;
+const int inc_alrm_vazamento = 1;
+const int inc_alrm_queda_rede = 1;
+
+//Valores temporarios dos botoes
+float tmp_freRes = 8;
+float tmp_tmpIns = 0.3f;
+int tmp_alrm_pressao = 100;
+int tmp_alrm_vazamento = 100;
+int tmp_alrm_queda_rede = 100;
+
+//Parametros globais
+bool config_mode = 0;
+bool config_mode_past = 1;
+bool changing_mode = 0;
+bool confirm_mode = 0;
+bool discard_mode = 0;
+bool button0press = 0;
+bool button1press = 0;
+bool button2press = 0;
+
+//configuracoes
+#define _DEBUG					//Comente para desativar funcoes de debug
+#define MIN_MIL 20  			//O tempo minimo, em miliseg para atualizar a tela
+#define INFO_FRAMES_UPDATE 10	//Em quantos quadros os parametros são atualizados
+#define GRAPH_SIZE 550			//Em quantos quadros os parametros são atualizados
+#define LOGO_INICIAL			//Comente para desativar a logo inicial
+#define TEMPO_LOGO 5			//Tempo que a logo fica ativa no inicio
+#define _CLOCK					//Ativa o relogio
 
 VGA3BitI vga;
 #include "include/Itens.h"
+#include "include/hardware_func.h"
+
+Button startBotao1, startBotao2, startBotao3;
+Button startBotao4, startBotao5;
+Button startBotao6, startBotao7, startBotao8;
+Button startBotao9, startBotao10;
 
 Graph grafico1, grafico2, grafico3;
-Box caixa1, caixa2, caixa3, caixa4, caixa5, caixa6, caixa7, caixa8, caixa9, caixa10;
+Box caixa1, caixa2, caixa3, caixa4, caixa5;
 Button botao1, botao2, botao3, botao4, botao5;
 
 TaskHandle_t DrawingTask;
-TaskHandle_t EncoderTask;
-TaskHandle_t SerialTask;
+TaskHandle_t StartTask;
+TaskHandle_t SetupDrawTask;
+TaskHandle_t EndTask;
 
 void DrawingTaskFunction(void* parameters);
-void EncoderTaskFunction(void* parameters);
-void SerialTaskFunction(void* parameters);
+void StartTaskFunction(void* parameters);
+void SetupDrawTaskFunction(void* parameters);
+void EndTaskFunction(void* parameters);
+
 void ExternalInterrupt();
-void EncoderInterrupt();
+void ButtonInterrupt();
 
 void setup()
 {
-  //Configura serial
-  Serial.begin(115200);
-  pinMode(buzzer, OUTPUT);
+	//Configura serial
+	Serial.begin(115200);
   
-  //Utilizado para debug, mostra o que causou o ultimo reset do sistema
-  Serial.println("CPU0 reset reason:");
-  print_reset_reason(rtc_get_reset_reason(0));
-  verbose_print_reset_reason(rtc_get_reset_reason(0));
-  Serial.println("CPU1 reset reason:");
-  print_reset_reason(rtc_get_reset_reason(1));
-  verbose_print_reset_reason(rtc_get_reset_reason(1));
-  
-  //Configuracao de seed aleatoria
-  randomSeed(analogRead(0));
+	//Configuracao de seed aleatoria
+	randomSeed(analogRead(0));
 
-  //Configuracao de pinos
-  pinMode(encbut0pin, INPUT);
-  pinMode(button0pin, INPUT);
-  pinMode(button1pin, INPUT);
-  pinMode(button2pin, INPUT);
-  pinMode(int0pin ,INPUT_PULLUP);
-  pinMode(encApin ,INPUT_PULLDOWN);
-  pinMode(encBpin ,INPUT_PULLDOWN);
-  attachInterrupt(digitalPinToInterrupt(int0pin), ExternalInterrupt, FALLING);
-  attachInterrupt(digitalPinToInterrupt(encApin), EncoderInterrupt, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(encBpin), EncoderInterrupt, CHANGE);
+	//Configuração do timer para interrupcoes
+	timerInt = timerBegin(TIMER_0, 80, true);
+	timerAttachInterrupt(timerInt, &int1s, true);
+	timerAlarmWrite(timerInt, 1000000, true);
+	timerAlarmEnable(timerInt);
 
-  //Configuracoes VGA
-  vga.init(vga.MODE800x600, redPin, greenPin, bluePin, hsyncPin, vsyncPin);
-  vga.setFont(Font6x8);
-  vga.setCursor(10, 10);
-  vga.setTextColor(0x8);
-  vga.setFrameBufferCount(1);
+	//Configuração do timer para imagem
+	timerFPS = timerBegin(TIMER_1, 80, true);
 
-  //Desenho de itens fixos
-  DrawBackground(800, 600, 0xc, 0xc);
-  DrawLogo(690, 10);
+	//Utilizado para debug, mostra o que causou o ultimo reset do sistema
+	Serial.println("CPU0 reset reason:");
+	print_reset_reason(rtc_get_reset_reason(0));
+	verbose_print_reset_reason(rtc_get_reset_reason(0));
+	Serial.println("CPU1 reset reason:");
+	print_reset_reason(rtc_get_reset_reason(1));
+	verbose_print_reset_reason(rtc_get_reset_reason(1));
 
-  //Configuracoes dos graficos
-  grafico1.ydataoff = 50;
-  grafico2.ydataoff = 25;
-  grafico3.ydataoff = 75;
-  grafico3.ydatasize = 150;
-  SetupGraph(&grafico1, 20, 25, 450, 150, "Sine Wave", 2);
-  SetupGraph(&grafico2, 20, 225, 450, 150, "Sine Wave 2", 2);
-  SetupGraph(&grafico3, 20, 425, 450, 150, "Foo Bar Baz Random", 2);
+	//Configuracao de pinos
+	pinMode(encbut0pin, INPUT);
+	pinMode(button0pin, INPUT_PULLUP);
+	pinMode(button1pin, INPUT_PULLUP);
+	pinMode(button2pin, INPUT_PULLUP);
+	pinMode(int0pin ,INPUT_PULLUP);
+	pinMode(encApin ,INPUT_PULLDOWN);
+	pinMode(encBpin ,INPUT_PULLDOWN);
+	pinMode(buzzer, OUTPUT);
+	attachInterrupt(digitalPinToInterrupt(int0pin), ExternalInterrupt, FALLING);
+	attachInterrupt(digitalPinToInterrupt(button0pin), ButtonInterrupt, FALLING);
+	attachInterrupt(digitalPinToInterrupt(button1pin), ButtonInterrupt, FALLING);
+	attachInterrupt(digitalPinToInterrupt(button2pin), ButtonInterrupt, FALLING);
+	attachInterrupt(digitalPinToInterrupt(encApin), EncoderInterrupt, CHANGE);
+	attachInterrupt(digitalPinToInterrupt(encBpin), EncoderInterrupt, CHANGE);
 
-  //eixo x
-  SetupLegenda(8, 25,"UM",0xf,0x0,1,1);
-  SetupLegenda(8, 225,"UM",0xf,0x0,1,1);
-  SetupLegenda(8, 425,"UM",0xf,0x0,1,1);
-  //eixo y
-  SetupLegenda(450, 180,"UM",0xf,0x0,1,0);
-  SetupLegenda(450, 380,"UM",0xf,0x0,1,0);
-  SetupLegenda(450, 580,"UM",0xf,0x0,1,0);
-
-  //Configuracoes de caixas
-  SetupBox(&caixa1, 490, 100, 95, 80, "FooBarBaz", 123, "Km/h");
-  SetupBox(&caixa2, 490, 200, 95, 80, "FooBarBaz", 123, "Km/h");
-  SetupBox(&caixa3, 490, 300, 95, 80, "FooBarBaz", 123, "Km/h");
-  SetupBox(&caixa4, 490, 400, 95, 80, "FooBarBaz", 123, "Km/h");
-  SetupBox(&caixa5, 490, 500, 95, 80, "FooBarBaz", 123, "Km/h");
-  SetupBox(&caixa6, 595, 100, 95, 80, "ABCDE", -345, "mm3");
-  SetupBox(&caixa7, 595, 200, 95, 80, "ABCDE", -345, "mm3");
-  SetupBox(&caixa8, 595, 300, 95, 80, "ABCDE", -345, "mm3");
-  SetupBox(&caixa9, 595, 400, 95, 80, "ABCDE", -345, "mm3");
-  SetupBox(&caixa10, 595, 500, 95, 80, "ABCDE", -345, "mm3");
-
-  //Configuracoes de botoes
-  SetupButton(&botao1, 700, 100, 95, 80, "Sine Wave Banana", 123, "%");
-  SetupButton(&botao2, 700, 200, 95, 80, "Sine Wave Banana", 123, "%");
-  SetupButton(&botao3, 700, 300, 95, 80, "Sine Wave Banana", 123, "%");
-  SetupButton(&botao4, 700, 400, 95, 80, "Sine Wave Banana", 123, "%");
-  SetupButton(&botao5, 700, 500, 95, 80, "Sine Wave Banana", 123, "%");
-
-  vga.setCursor(25, 580);
-  //vga.setTextColor(0xb);
-  vga.print("BG-Mister e LZ-Mister", 0xf, 0x0, 2);
-  vga.setCursor(500, 25);
-  vga.print("A gente constroi", 0xf, 0x0, 2);
-  vga.setCursor(530, 45);
-  vga.print("Deus leva", 0xf, 0x0, 2);
-
-  //Definicao de tarefas
-  xTaskCreatePinnedToCore(DrawingTaskFunction, "DrawingTask", 20000, NULL, PRIORITY_1, &DrawingTask, CORE_0);
-  xTaskCreate(EncoderTaskFunction, "EncoderTask", 1000, NULL, PRIORITY_2, &EncoderTask);
-  xTaskCreatePinnedToCore(SerialTaskFunction, "SerialTask", 1000, NULL, PRIORITY_1, &SerialTask, CORE_1);
+	//Configuracoes VGA
+	vga.init(vga.MODE800x600, redPin, greenPin, bluePin, hsyncPin, vsyncPin);
+	vga.setFont(Font6x8);
+	vga.setCursor(10, 10);
+	vga.setTextColor(0x8);
+	vga.setFrameBufferCount(1);
+	
+	//Definicao de tarefas de setup
+	xTaskCreate(EncoderTaskFunction, "EncoderTask", 1000, NULL, PRIORITY_2, &EncoderTask);
+	xTaskCreate(ButtonTaskFunction, "ButtonTask", 1000, NULL, PRIORITY_2, &ButtonTask);
+	xTaskCreate(StartTaskFunction, "StartTask", 1000, NULL, PRIORITY_0, &StartTask);
 }
+void(* resetFunc) (void) = 0;
 
 unsigned int counter1 = 0;
 float t = 0.0f;
 unsigned int value1 = 0;
 unsigned int adc0val = 0, adc1val = 0, adc2val = 0;
-unsigned short decoder = 0, decoderPast = 0;
 
 //Inicia tarefas quando ocorre interrupcoes
 void ExternalInterrupt() {
-  //vTaskResume(SerialTask);
+}
+
+bool booted = false;
+bool startPhase = true;
+//Tarefa de inicializacao do sistema
+void StartTaskFunction(void* parameters) {
+	DrawBackground(800, 600, 0xc, 0xc);
+#ifdef LOGO_INICIAL
+	DrawLogo(0, -20, 8);
+	while(timercount < TEMPO_LOGO)
+			vTaskDelay(100/portTICK_PERIOD_MS);
+	DrawBackground(800, 600, 0xc, 0xc);
+#endif
+	char startTextSize = 2;
+	vga.setCursor(0, 80-vga.font->charHeight*startTextSize);
+	vga.printCenter("Paciente", 200, 600, 0xf, 0x0, startTextSize);
+	vga.setCursor(0, 200-vga.font->charHeight*startTextSize);
+	vga.printCenter("Medidas do Paciente", 200, 600, 0xf, 0x0, startTextSize);
+	vga.setCursor(0, 320-vga.font->charHeight*startTextSize);
+	vga.printCenter("Modo de Operacao", 200, 600, 0xf, 0x0, startTextSize);
+
+	startBotao1.m_text_size=2;
+	startBotao2.m_text_size=2;
+	startBotao3.m_text_size=2;
+	SetupButton(&startBotao1, 200, 80, 100, 100, "", "Neonatal", "");
+	SetupButton(&startBotao2, 330, 80, 140, 100, "", "Pediatrico", "");
+	SetupButton(&startBotao3, 500, 80, 100, 100, "", "Adulto", "");
+	SetupButton(&startBotao4, 200, 200, 175, 100, "Peso", 0, "Kg");
+	SetupButton(&startBotao5, 425, 200, 175, 100, "Altura", 0, "m");
+	SetupButton(&startBotao7, 350, 320, 100, 100, "Pressao Controlada", "PCV", "");
+	SetupButton(&startBotao6, 200, 320, 100, 100, "Ventilacao Nao Invasiva", "NIV", "");
+	SetupButton(&startBotao8, 500, 320, 100, 100, "Volume Controlado", "VCV", "");
+	SetupButton(&startBotao9, 320, 460, 60, 60, "Cancela", "X", "");
+	SetupButton(&startBotao10, 420, 460, 60, 60, "Confirma", "OK", "");
+
+	startBotao1.config_on = false;
+	startBotao2.config_on = false;
+	startBotao3.config_on = false;
+	startBotao4.config_on = false;
+	startBotao5.config_on = false;
+	startBotao6.config_on = false;
+	startBotao7.config_on = false;
+	startBotao8.config_on = false;
+	startBotao9.config_on = false;
+	startBotao10.config_on = false;
+	startBotao10.config_on = false;
+	startBotao9.border_no_config_color = 0xe;
+	startBotao9.border_default_color = 0x8;
+	startBotao9.border_selected_color = 0x9;
+	startBotao10.border_no_config_color = 0xe;
+	startBotao10.border_default_color = 0x8;
+	startBotao10.border_selected_color = 0xa;
+
+	byte currentRow = 0;
+	byte pastRow = 1;
+	const byte settedColor = 0x8;
+	const byte notSetColor = 0xf;
+	changing_mode = false;
+	config_mode = false;
+	while(startPhase){
+		time0 = millis();
+		
+    	counter1 >= 450 ? counter1 = 0 : counter1++;
+
+    	if (counter1 % INFO_FRAMES_UPDATE == 0) {
+			if(buttonFlag!=0b111) {
+				switch(buttonFlag){
+					case 0b110:
+						currentRow++;
+						break;
+					case 0b011:
+						changing_mode ^= true;
+						break;
+				}
+				if((currentRow%4)==3 && buttonFlag==0b101)
+					config_mode = true;
+				else
+					config_mode = false;
+				buttonFlag=0b111;
+			}
+
+			if(currentRow!=pastRow){
+				pastRow=currentRow;
+				startBotao1.is_selected ? startBotao1.border_no_config_color = settedColor : startBotao1.border_no_config_color = notSetColor;	
+				startBotao2.is_selected ? startBotao2.border_no_config_color = settedColor : startBotao2.border_no_config_color = notSetColor;	
+				startBotao3.is_selected ? startBotao3.border_no_config_color = settedColor : startBotao3.border_no_config_color = notSetColor;	
+				startBotao4.is_selected ? startBotao4.border_no_config_color = settedColor : startBotao4.border_no_config_color = notSetColor;	
+				startBotao5.is_selected ? startBotao5.border_no_config_color = settedColor : startBotao5.border_no_config_color = notSetColor;	
+				startBotao6.is_selected ? startBotao6.border_no_config_color = settedColor : startBotao6.border_no_config_color = notSetColor;	
+				startBotao7.is_selected ? startBotao7.border_no_config_color = settedColor : startBotao7.border_no_config_color = notSetColor;	
+				startBotao8.is_selected ? startBotao8.border_no_config_color = settedColor : startBotao8.border_no_config_color = notSetColor;
+				startBotao1.config_on = false;
+				startBotao2.config_on = false;
+				startBotao3.config_on = false;
+				startBotao4.config_on = false;
+				startBotao5.config_on = false;
+				startBotao6.config_on = false;
+				startBotao7.config_on = false;
+				startBotao8.config_on = false;
+				startBotao9.config_on = false;
+				startBotao10.config_on = false;
+				RedrawButton(&startBotao1, "");
+				RedrawButton(&startBotao2, "");
+				RedrawButton(&startBotao3, "");
+				RedrawButton(&startBotao4, peso_paciente);
+				RedrawButton(&startBotao5, altura_paciente);
+				RedrawButton(&startBotao6, "");
+				RedrawButton(&startBotao7, "");
+				RedrawButton(&startBotao8, "");
+				RedrawButton(&startBotao9, "");
+				RedrawButton(&startBotao10, "");
+			}
+			switch(currentRow%4){
+				case 0:
+					startBotao1.config_on = true;
+					startBotao2.config_on = true;
+					startBotao3.config_on = true;
+					switch(decoder%3){
+						case 0:
+							startBotao1.is_selected = true;
+							startBotao2.is_selected = false;
+							startBotao3.is_selected = false;
+							break;
+						case 1:
+							startBotao1.is_selected = false;
+							startBotao2.is_selected = true;
+							startBotao3.is_selected = false;
+							break;
+						case 2:
+							startBotao1.is_selected = false;
+							startBotao2.is_selected = false;
+							startBotao3.is_selected = true;
+							break;
+					}
+					RedrawButton(&startBotao1, "");
+					RedrawButton(&startBotao2, "");
+					RedrawButton(&startBotao3, "");
+					break;
+				case 1:
+					startBotao4.config_on = true;
+					startBotao5.config_on = true;
+					if(!changing_mode) {
+						startBotao4.is_changing = false;
+						startBotao5.is_changing = false;
+						switch(decoder%2) {
+							case 0:
+								startBotao4.is_selected = true;
+								startBotao5.is_selected = false;
+								break;
+							case 1:
+								startBotao4.is_selected = false;
+								startBotao5.is_selected = true;
+								break;
+						}
+					}
+					else {
+						if(startBotao4.is_selected) {
+							startBotao4.is_changing = true;
+							startBotao5.is_changing = false;
+						}
+						else if(startBotao5.is_selected) {
+							startBotao4.is_changing = false;
+							startBotao5.is_changing = true;
+						}
+						if(decoder!=decoderPast) {
+							if(startBotao4.is_selected)
+								decoder>decoderPast? peso_paciente += 0.5 : peso_paciente -= 0.5;
+							else if(startBotao5.is_selected)
+								decoder>decoderPast? altura_paciente += 0.01 : altura_paciente -= 0.01;
+							decoderPast=decoder;
+						}
+					}
+					RedrawButton(&startBotao4, peso_paciente);
+					RedrawButton(&startBotao5, altura_paciente);
+					break;
+				case 2:
+					startBotao6.config_on = true;
+					startBotao7.config_on = true;
+					startBotao8.config_on = true;
+					switch(decoder%3){
+						case 0:
+							startBotao6.is_selected = true;
+							startBotao7.is_selected = false;
+							startBotao8.is_selected = false;
+							break;
+						case 1:
+							startBotao6.is_selected = false;
+							startBotao7.is_selected = true;
+							startBotao8.is_selected = false;
+							break;
+						case 2:
+							startBotao6.is_selected = false;
+							startBotao7.is_selected = false;
+							startBotao8.is_selected = true;
+							break;
+					}
+					RedrawButton(&startBotao6, "");
+					RedrawButton(&startBotao7, "");
+					RedrawButton(&startBotao8, "");
+					break;
+				case 3:
+					startBotao9.config_on = true;
+					startBotao10.config_on = true;
+					switch(decoder%2){
+						case 0:
+							startBotao9.is_selected = true;
+							startBotao10.is_selected = false;
+							if(config_mode) {
+								if(esp_sleep_enable_ext0_wakeup(GPIO_NUM_12, 0) == ESP_OK)
+									if(rtc_gpio_pullup_en(GPIO_NUM_12) == ESP_OK) {
+										esp_deep_sleep_start();
+										resetFunc();
+									}
+							}
+							break;
+						case 1:
+							startBotao9.is_selected = false;
+							startBotao10.is_selected = true;
+							if(config_mode)
+								startPhase=false;
+							break;
+					}
+					RedrawButton(&startBotao9, "");
+					RedrawButton(&startBotao10, "");
+					break;
+			}
+		}
+ 
+#ifdef _DEBUG
+		showFPS();
+#endif
+		while (millis() - time0 < MIN_MIL)
+			vTaskDelay(10/portTICK_PERIOD_MS);
+	}
+	booted = true;
+
+	xTaskCreatePinnedToCore(SetupDrawTaskFunction, "SetupDrawTask", 10000, NULL, PRIORITY_0, &SetupDrawTask, CORE_0);
+	vTaskSuspend(NULL);
+}
+
+//Tarefa de setup para tela inicial
+void SetupDrawTaskFunction(void* parameters) {
+	//Desenho de itens fixos
+	DrawBackground(800, 600, 0xc, 0xc);
+	DrawLogo(690, 10);
+
+	//Configuracoes dos graficos
+	grafico1.ydataoff = 50;
+	grafico2.ydataoff = 25;
+	grafico3.ydataoff = 75;
+	grafico3.ydatasize = 150;
+	SetupGraph(&grafico1, 20, 25, 550, 150, "Pressao", 2);
+	SetupGraph(&grafico2, 20, 225, 550, 150, "Fluxo", 2);
+	SetupGraph(&grafico3, 20, 425, 550, 150, "Volume", 2);
+
+/*	//eixo x
+	SetupLegenda(8, 25,"UM",0xf,0x0,1,1);
+	SetupLegenda(8, 225,"UM",0xf,0x0,1,1);
+	SetupLegenda(8, 425,"UM",0xf,0x0,1,1);
+
+	//eixo y
+	SetupLegenda(450, 180,"UM",0xf,0x0,1,0);
+	SetupLegenda(450, 380,"UM",0xf,0x0,1,0);
+	SetupLegenda(450, 580,"UM",0xf,0x0,1,0);*/
+
+	//Configuracoes de caixas
+	SetupBox(&caixa1, 595, 100, 95, 80, "FiO2", "", "%");
+	SetupBox(&caixa2, 595, 200, 95, 80, "PEEP", "", "H2O");
+	SetupBox(&caixa3, 595, 300, 95, 80, "Volume Inspirado", "", "mL");
+	SetupBox(&caixa4, 595, 400, 95, 80, "Fluxo Inspiratorio", "", "L/min");
+	SetupBox(&caixa5, 595, 500, 95, 80, "Relacao I:E", "", "");
+	
+	//Configuracoes de botoes
+	SetupButton(&botao1, 700, 100, 95, 80, "Tempo Inspiratorio", "", "s");
+	SetupButton(&botao2, 700, 200, 95, 80, "Frequencia Respiratoria", "", "RPM");
+	SetupButton(&botao3, 700, 300, 95, 80, "Alarme\31Pressao Maxima\31em\31Vias", "", "");
+	SetupButton(&botao4, 700, 400, 95, 80, "Alarme Vazamento", "", "");
+	SetupButton(&botao5, 700, 500, 95, 80, "Alarme Queda de Rede de Gases", "", "");
+
+/*	vga.setCursor(25, 580);
+	//vga.setTextColor(0xb);
+	vga.print("BG-Mister e LZ-Mister", 0xf, 0x0, 2);
+	vga.setCursor(500, 25);
+	vga.print("A gente constroi", 0xf, 0x0, 2);
+	vga.setCursor(530, 45);
+	vga.print("Deus leva", 0xf, 0x0, 2);*/
+
+	xTaskCreatePinnedToCore(DrawingTaskFunction, "DrawingTask", 10000, NULL, PRIORITY_1, &DrawingTask, CORE_0);
+	vTaskSuspend(NULL);
 }
 
 //Tarefa utilizada para desenhar atualizacoes
 void DrawingTaskFunction(void* parameters) {
-  while (1) {
-    time0 = millis();
-    RedrawGraph(&grafico1, counter1, 50.0 * sin((float)counter1 * 6.28 / 450 + t));
-    RedrawGraph(&grafico2, counter1, 70.0 * sin(((float)counter1 + 150.0) * 6.28 / 450 + t));
-    RedrawGraph(&grafico3, counter1, (short)random(-50, 50));
+	static unsigned short graphCnt = 0;
+	config_mode = false;
+	changing_mode = false;
+	while (1){
+		time0 = millis();
 
-    t > 6.28 ? t = 0 : t += 0.01;
-    counter1 >= 450 ? counter1 = 0 : counter1++;
+		//Atualizacao de graficos
+		graphCnt >= 550 ? graphCnt = 0 : graphCnt++;
+		RedrawGraph(&grafico1, graphCnt, 50.0 * sin((float)graphCnt * 6.28 / 450 + t));
+		RedrawGraph(&grafico2, graphCnt, 70.0 * sin(((float)graphCnt + 150.0) * 6.28 / 450 + t));
+		RedrawGraph(&grafico3, graphCnt, (short)random(-50, 50));
 
-    if (counter1 % 10 == 0) {
-      value1++;
-      adc0val = analogRead(adc0pin);
-      adc1val = analogRead(adc1pin);
-      if(decoder!=decoderPast){
-        decoderPast=decoder;
-            botao1.is_selected = false;
-            botao2.is_selected = false;
-            botao3.is_selected = false;
-            botao4.is_selected = false;
-            botao5.is_selected = false;
-        switch(decoder%5){
-          case 0:
-            botao1.is_selected = true;
-            break;
-          case 1:
-            botao2.is_selected = true;
-            break;
-          case 2:
-            botao3.is_selected = true;
-            break;
-          case 3:
-            botao4.is_selected = true;
-            break;
-          case 4:
-            botao5.is_selected = true;
-            break;
-        }
-      }
-      RedrawButton(&botao1, 0.000f);
-      RedrawButton(&botao2, value1);
-      RedrawButton(&botao3, value1);
-      RedrawButton(&botao4, value1);
-      RedrawButton(&botao5, value1);
-      RedrawBox(&caixa1, counter1);
-      RedrawBox(&caixa2, adc0val);
-      RedrawBox(&caixa3, adc0val);
-      RedrawBox(&caixa4, adc0val);
-      RedrawBox(&caixa5, adc0val);
-      RedrawBox(&caixa6, t);
-      RedrawBox(&caixa7, adc1val);
-      RedrawBox(&caixa8, adc1val);
-      RedrawBox(&caixa9, t);
-      RedrawBox(&caixa10, decoder);
-    }
-    showFPS();
-    while (millis() - time0 < MIN_MIL)
-      vTaskDelay(1/portTICK_PERIOD_MS);
-  }
-}
+		t > 6.28 ? t = 0 : t += 0.01;
 
+		//Atualizacao da visualizacao dos parametros
+		if (graphCnt % INFO_FRAMES_UPDATE == 0) {
+			value1++;
+			adc0val = analogRead(adc0pin);
+			adc1val = analogRead(adc1pin);
 
-//Detecta interrupcoes do encoder
-void EncoderInterrupt() {
-  vTaskResume(EncoderTask);
-}
+			if(buttonFlag!=0b111) {
+				confirm_mode = false;
+				discard_mode = false;
+				switch(buttonFlag){
+					case 0b110:
+						if(config_mode)
+							confirm_mode = true;
+						break;
+					case 0b011:
+						if(!config_mode)
+							config_mode = true;
+						else
+							discard_mode = true;
+						break;
+					case 0b101:
+						if(config_mode)
+							changing_mode ^= true;
+						else
+							changing_mode = false;
+						break;
+				}
+				buttonFlag=0b111;
+			}
 
-uint8_t portVal = 0, mp = 0, i = 0, pastI = 0;
-//Tarefa para decodificar o encoder incremental
-void EncoderTaskFunction(void* parameters) {
-  while(1) {
-    portVal=(uint8_t)(*portInputRegister(digitalPinToPort(encApin)));
-    i = portVal&0x30;
-    if(i!=pastI)
-    {
-      pastI=i;
-      switch(i){
-        case 0x10:
-          if(mp==0)
-            mp=0b01;
-          break;
-        case 0x20:
-          if(mp==0)
-            mp=0b10;
-          break;
-        case 0x00:
-          if(mp==1)
-            decoder++;
-          else if(mp==2)
-            decoder--;
-          mp=0;
-          break;
-      }
-    }
-    vTaskSuspend(NULL);
-  }
-}
+			//Atualizacao de botoes
+			if(!config_mode) {
+				if(config_mode!=config_mode_past) {
+					config_mode_past = config_mode;
+					botao1.config_on = config_mode;
+					botao2.config_on = config_mode;
+					botao3.config_on = config_mode;
+					botao4.config_on = config_mode;
+					botao5.config_on = config_mode;
+				}
+				RedrawButton(&botao1, tmpIns);
+				RedrawButton(&botao2, freRes);
+				RedrawButton(&botao3, alrm_pressao);
+				RedrawButton(&botao4, alrm_vazamento);
+				RedrawButton(&botao5, alrm_queda_rede);
+				tmp_tmpIns = tmpIns;
+				tmp_freRes = freRes;
+				tmp_alrm_pressao = alrm_pressao;
+				tmp_alrm_vazamento = alrm_vazamento;
+				tmp_alrm_queda_rede = alrm_queda_rede;
+			}
+			else {
+				if(!changing_mode) {
+					if(confirm_mode) {
+						tmpIns = tmp_tmpIns;
+						freRes = tmp_freRes;
+						alrm_pressao = tmp_alrm_pressao;
+						alrm_vazamento = tmp_alrm_vazamento;
+						alrm_queda_rede = tmp_alrm_queda_rede;
+						confirm_mode = false;
+						config_mode = false;
+					}
+					else if(discard_mode) {
+						discard_mode = false;
+						config_mode = false;
+					}
+				}
+				static byte changing_button;
+				if(config_mode!=config_mode_past) {
+					config_mode_past = config_mode;
+					botao1.config_on = config_mode;
+					botao2.config_on = config_mode;
+					botao3.config_on = config_mode;
+					botao4.config_on = config_mode;
+					botao5.config_on = config_mode;
+				}
+				if(changing_mode) {
+					botao1.is_changing = false;
+					botao2.is_changing = false;
+					botao3.is_changing = false;
+					botao4.is_changing = false;
+					botao5.is_changing = false;
+					switch(changing_button){
+						case 0:
+							botao1.is_changing = true;
+							break;
+						case 1:
+							botao2.is_changing = true;
+							break;
+						case 2:
+							botao3.is_changing = true;
+							break;
+						case 3:
+							botao4.is_changing = true;
+							break;
+						case 4:
+							botao5.is_changing = true;
+							break;
+					}
+				}
+				else {
+					botao1.is_changing = false;
+					botao2.is_changing = false;
+					botao3.is_changing = false;
+					botao4.is_changing = false;
+					botao5.is_changing = false;
+				}
+				RedrawButton(&botao1, tmp_tmpIns);
+				RedrawButton(&botao2, tmp_freRes);
+				RedrawButton(&botao3, tmp_alrm_pressao);
+				RedrawButton(&botao4, tmp_alrm_vazamento);
+				RedrawButton(&botao5, tmp_alrm_queda_rede);
 
-//Tarefa somente de teste por enquanto
-void SerialTaskFunction(void* parameters) {
-  while(1) {
-    //Serial.println((int)(*portInputRegister(digitalPinToPort(encApin))));
-    //Serial.print('\t');
-    //gpiomap++;
-    //if(gpiomap>=(uint8_t*)0x3FF44FFF)
-    //  vTaskSuspend(NULL);
-    vTaskDelay(100/portTICK_PERIOD_MS);
-    //vTaskSuspend(NULL);
-  }
+				if(decoder!=decoderPast) {
+					if(!changing_mode){
+						botao1.is_selected = false;
+						botao2.is_selected = false;
+						botao3.is_selected = false;
+						botao4.is_selected = false;
+						botao5.is_selected = false;
+						changing_button = decoder%5;
+						switch(changing_button){
+							case 0:
+								botao1.is_selected = true;
+								break;
+							case 1:
+								botao2.is_selected = true;
+								break;
+							case 2:
+								botao3.is_selected = true;
+								break;
+							case 3:
+								botao4.is_selected = true;
+								break;
+							case 4:
+								botao5.is_selected = true;
+								break;
+						}
+					}
+					else {
+						switch(changing_button) {
+							case 0:
+								decoder>decoderPast? tmp_tmpIns += inc_tmpIns : tmp_tmpIns -= inc_tmpIns;
+								break;
+							case 1:
+								decoder>decoderPast? tmp_freRes += inc_freRes : tmp_freRes -= inc_freRes;
+								break;
+							case 2:
+								decoder>decoderPast? tmp_alrm_pressao += inc_alrm_pressao : tmp_alrm_pressao -= inc_alrm_pressao;
+								break;
+							case 3:
+								decoder>decoderPast? tmp_alrm_vazamento += inc_alrm_vazamento : tmp_alrm_vazamento -= inc_alrm_vazamento;
+								break;
+							case 4:
+								decoder>decoderPast? tmp_alrm_queda_rede += inc_alrm_queda_rede : tmp_alrm_queda_rede -= inc_alrm_queda_rede;
+								break;
+						}
+					}
+					decoderPast=decoder;
+					decoderPast=decoder;
+				}
+				if(confirm_mode) {
+					changing_mode = false;
+					confirm_mode = false;
+				}
+				else if(discard_mode) {
+					changing_mode = false;
+					discard_mode = false;
+					switch(changing_button) {
+						case 0:
+							tmp_tmpIns = tmpIns;
+							break;
+						case 1:
+							tmp_freRes = freRes;
+							break;
+						case 2:
+							tmp_alrm_pressao = alrm_pressao;
+							break;
+						case 3:
+							tmp_alrm_vazamento = alrm_vazamento;
+							break;
+						case 4:
+							tmp_alrm_queda_rede = alrm_queda_rede;
+							break;
+					}
+				}
+			}
+
+			FiO2=adc0val;
+			PEEP=adc0val;
+			volIns=adc0val;
+			flxIns=adc0val;
+			I_E=adc0val;
+
+			//Atualizacao de caixas
+			RedrawBox(&caixa1, buttonFlag);
+			RedrawBox(&caixa2, PEEP);
+			RedrawBox(&caixa3, volIns);
+			RedrawBox(&caixa4, flxIns);
+			RedrawBox(&caixa5, I_E);
+		}
+
+#ifdef _DEBUG
+		showFPS();
+#endif
+		while (millis() - time0 < MIN_MIL)
+			vTaskDelay(10/portTICK_PERIOD_MS);
+	}
 }
 
 void loop() {
   //led
-  LoopLed(button0pin,ledadv0);
+  /*LoopLed(button0pin,ledadv0);
   LoopLed(button1pin,ledadv1);
   LoopLed(button2pin,ledadv2);
 
   // buzzer
    digitalWrite(buzzer, LOW);
-   Serial.println(button0pin);
     if(valmax<=val)
     {
       digitalWrite(buzzer, HIGH);
@@ -291,5 +703,5 @@ void loop() {
     ESP.restart();
     }
     }
-    contreset=0;
+    contreset=0;*/
 }
