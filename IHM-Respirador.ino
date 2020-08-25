@@ -21,6 +21,8 @@ float val=0;
 float valbuz=0;
 int a=1;
 int contreset=0;
+int flag=1;
+int flag1=0;
 
 unsigned long time0;
 
@@ -65,24 +67,32 @@ bool discard_mode = 0;
 bool button0press = 0;
 bool button1press = 0;
 bool button2press = 0;
+bool booted = false;
+bool startPhase = true;
+bool shutDownFlag = false;
+bool resetFlag = false;
+bool sairFlag = false;
+bool continuarFlag = false;
 
 //configuracoes
 #define _DEBUG					//Comente para desativar funcoes de debug
-#define MIN_MIL 20  			//O tempo minimo, em miliseg para atualizar a tela
+#define MIN_MIL 2  				//O tempo minimo, em centiseg para atualizar a tela
+#define SHUT_TIME 20			//O tempo, em deciseg, para entrar na tela de shutdown
 #define INFO_FRAMES_UPDATE 10	//Em quantos quadros os parametros são atualizados
-#define GRAPH_SIZE 550			//Em quantos quadros os parametros são atualizados
+#define GRAPH_SIZE 500			//Em quantos quadros os parametros são atualizados
 #define LOGO_INICIAL			//Comente para desativar a logo inicial
 #define TEMPO_LOGO 5			//Tempo que a logo fica ativa no inicio
 #define _CLOCK					//Ativa o relogio
 
 VGA3BitI vga;
 #include "include/Itens.h"
-#include "include/hardware_func.h"
 
 Button startBotao1, startBotao2, startBotao3;
 Button startBotao4, startBotao5;
 Button startBotao6, startBotao7, startBotao8;
 Button startBotao9, startBotao10;
+
+Button resetBotao1, resetBotao2, resetBotao3;
 
 Graph grafico1, grafico2, grafico3;
 Box caixa1, caixa2, caixa3, caixa4, caixa5;
@@ -92,14 +102,20 @@ TaskHandle_t DrawingTask;
 TaskHandle_t StartTask;
 TaskHandle_t SetupDrawTask;
 TaskHandle_t EndTask;
+TaskHandle_t BuzzerTask;
+TaskHandle_t ResetTask;
 
 void DrawingTaskFunction(void* parameters);
 void StartTaskFunction(void* parameters);
 void SetupDrawTaskFunction(void* parameters);
 void EndTaskFunction(void* parameters);
+void BuzzerTaskFunction(void* parameters);
+void ResetTaskFunction(void* parameters);
 
 void ExternalInterrupt();
 void ButtonInterrupt();
+
+#include "include/hardware_func.h"
 
 void setup()
 {
@@ -111,8 +127,8 @@ void setup()
 
 	//Configuração do timer para interrupcoes
 	timerInt = timerBegin(TIMER_0, 80, true);
-	timerAttachInterrupt(timerInt, &int1s, true);
-	timerAlarmWrite(timerInt, 1000000, true);
+	timerAttachInterrupt(timerInt, &int001s, true);
+	timerAlarmWrite(timerInt, 10000, true);
 	timerAlarmEnable(timerInt);
 
 	//Configuração do timer para imagem
@@ -152,7 +168,10 @@ void setup()
 	//Definicao de tarefas de setup
 	xTaskCreate(EncoderTaskFunction, "EncoderTask", 1000, NULL, PRIORITY_2, &EncoderTask);
 	xTaskCreate(ButtonTaskFunction, "ButtonTask", 1000, NULL, PRIORITY_2, &ButtonTask);
-	xTaskCreate(StartTaskFunction, "StartTask", 1000, NULL, PRIORITY_0, &StartTask);
+//	xTaskCreate(StartTaskFunction, "StartTask", 1000, NULL, PRIORITY_0, &StartTask);
+	xTaskCreatePinnedToCore(StartTaskFunction, "StartTask", 1000, NULL, PRIORITY_0, &StartTask, CORE_0);
+	xTaskCreate(BuzzerTaskFunction, "BuzzerTask", 1000, NULL, PRIORITY_0, &BuzzerTask);
+//	xTaskCreatePinnedToCore(ResetTaskFunction, "ResetTask", 1000, NULL, PRIORITY_2, &ResetTask, CORE_0);
 }
 void(* resetFunc) (void) = 0;
 
@@ -165,15 +184,14 @@ unsigned int adc0val = 0, adc1val = 0, adc2val = 0;
 void ExternalInterrupt() {
 }
 
-bool booted = false;
-bool startPhase = true;
 //Tarefa de inicializacao do sistema
 void StartTaskFunction(void* parameters) {
+	booted = false;
 	DrawBackground(800, 600, 0xc, 0xc);
 #ifdef LOGO_INICIAL
 	DrawLogo(0, -20, 8);
-	while(timercount < TEMPO_LOGO)
-			vTaskDelay(100/portTICK_PERIOD_MS);
+	while(timercount < TEMPO_LOGO*100)
+			vTaskDelay(10/portTICK_PERIOD_MS);
 	DrawBackground(800, 600, 0xc, 0xc);
 #endif
 	char startTextSize = 2;
@@ -394,76 +412,68 @@ void StartTaskFunction(void* parameters) {
 #ifdef _DEBUG
 		showFPS();
 #endif
-		while (millis() - time0 < MIN_MIL)
-			vTaskDelay(10/portTICK_PERIOD_MS);
+		while (!drawingFlag)
+			vTaskDelay(2/portTICK_PERIOD_MS);
+		drawingFlag = false;
 	}
-	booted = true;
-
 	xTaskCreatePinnedToCore(SetupDrawTaskFunction, "SetupDrawTask", 10000, NULL, PRIORITY_0, &SetupDrawTask, CORE_0);
-	vTaskSuspend(NULL);
+	
+	booted = true;
+	vTaskDelete(NULL);
 }
 
 //Tarefa de setup para tela inicial
 void SetupDrawTaskFunction(void* parameters) {
 	//Desenho de itens fixos
 	DrawBackground(800, 600, 0xc, 0xc);
-	DrawLogo(690, 10);
+	DrawLogo(675, 10);
 
 	//Configuracoes dos graficos
-	grafico1.ydataoff = 50;
-	grafico2.ydataoff = 25;
+	grafico1.ydataoff = 75;
+	grafico2.ydataoff = -20;
 	grafico3.ydataoff = 75;
+	grafico1.ydatasize = 150;
+	grafico2.ydatasize = 150;
 	grafico3.ydatasize = 150;
-	SetupGraph(&grafico1, 20, 25, 550, 150, "Pressao", 2);
-	SetupGraph(&grafico2, 20, 225, 550, 150, "Fluxo", 2);
-	SetupGraph(&grafico3, 20, 425, 550, 150, "Volume", 2);
-
-/*	//eixo x
-	SetupLegenda(8, 25,"UM",0xf,0x0,1,1);
-	SetupLegenda(8, 225,"UM",0xf,0x0,1,1);
-	SetupLegenda(8, 425,"UM",0xf,0x0,1,1);
-
-	//eixo y
-	SetupLegenda(450, 180,"UM",0xf,0x0,1,0);
-	SetupLegenda(450, 380,"UM",0xf,0x0,1,0);
-	SetupLegenda(450, 580,"UM",0xf,0x0,1,0);*/
+	grafico1.xdatasize = 100/MIN_MIL;
+	grafico2.xdatasize = 100/MIN_MIL;
+	grafico3.xdatasize = 100/MIN_MIL;
+	SetupGraph(&grafico1, 25, 25, GRAPH_SIZE, 150, "Pressao", 2, true);
+	SetupGraph(&grafico2, 25, 225, GRAPH_SIZE, 150, "Fluxo", 2, true);
+	SetupGraph(&grafico3, 25, 425, GRAPH_SIZE, 150, "Volume", 2, true);
 
 	//Configuracoes de caixas
-	SetupBox(&caixa1, 595, 100, 95, 80, "FiO2", "", "%");
-	SetupBox(&caixa2, 595, 200, 95, 80, "PEEP", "", "H2O");
-	SetupBox(&caixa3, 595, 300, 95, 80, "Volume Inspirado", "", "mL");
-	SetupBox(&caixa4, 595, 400, 95, 80, "Fluxo Inspiratorio", "", "L/min");
-	SetupBox(&caixa5, 595, 500, 95, 80, "Relacao I:E", "", "");
+	SetupBox(&caixa1, 550, 100, 100, 80, "FiO2", "", "%");
+	SetupBox(&caixa2, 550, 200, 100, 80, "PEEP", "", "H2O");
+	SetupBox(&caixa3, 550, 300, 100, 80, "Volume Inspirado", "", "mL");
+	SetupBox(&caixa4, 550, 400, 100, 80, "Fluxo Inspiratorio", "", "L/min");
+	SetupBox(&caixa5, 550, 500, 100, 80, "Relacao I:E", "", "");
 	
 	//Configuracoes de botoes
-	SetupButton(&botao1, 700, 100, 95, 80, "Tempo Inspiratorio", "", "s");
-	SetupButton(&botao2, 700, 200, 95, 80, "Frequencia Respiratoria", "", "RPM");
-	SetupButton(&botao3, 700, 300, 95, 80, "Alarme\31Pressao Maxima\31em\31Vias", "", "");
-	SetupButton(&botao4, 700, 400, 95, 80, "Alarme Vazamento", "", "");
-	SetupButton(&botao5, 700, 500, 95, 80, "Alarme Queda de Rede de Gases", "", "");
+	SetupButton(&botao1, 675, 100, 100, 80, "Tempo Inspiratorio", "", "s");
+	SetupButton(&botao2, 675, 200, 100, 80, "Frequencia Respiratoria", "", "RPM");
+	SetupButton(&botao3, 675, 300, 100, 80, "Alarme\31Pressao Maxima\31em\31Vias", "", "");
+	SetupButton(&botao4, 675, 400, 100, 80, "Alarme Vazamento", "", "");
+	SetupButton(&botao5, 675, 500, 100, 80, "Alarme Queda de Rede de Gases", "", "");
 
-/*	vga.setCursor(25, 580);
-	//vga.setTextColor(0xb);
-	vga.print("BG-Mister e LZ-Mister", 0xf, 0x0, 2);
-	vga.setCursor(500, 25);
-	vga.print("A gente constroi", 0xf, 0x0, 2);
-	vga.setCursor(530, 45);
-	vga.print("Deus leva", 0xf, 0x0, 2);*/
-
-	xTaskCreatePinnedToCore(DrawingTaskFunction, "DrawingTask", 10000, NULL, PRIORITY_1, &DrawingTask, CORE_0);
-	vTaskSuspend(NULL);
+	if(!continuarFlag)
+		xTaskCreatePinnedToCore(DrawingTaskFunction, "DrawingTask", 10000, NULL, PRIORITY_1, &DrawingTask, CORE_0);
+	else
+		vTaskResume(DrawingTask);
+	vTaskDelete(NULL);
 }
 
 //Tarefa utilizada para desenhar atualizacoes
 void DrawingTaskFunction(void* parameters) {
 	static unsigned short graphCnt = 0;
+while(1){
 	config_mode = false;
 	changing_mode = false;
-	while (1){
+	while (!shutDownFlag){
 		time0 = millis();
 
 		//Atualizacao de graficos
-		graphCnt >= 550 ? graphCnt = 0 : graphCnt++;
+		graphCnt >= GRAPH_SIZE ? graphCnt = 0 : graphCnt++;
 		RedrawGraph(&grafico1, graphCnt, 50.0 * sin((float)graphCnt * 6.28 / 450 + t));
 		RedrawGraph(&grafico2, graphCnt, 70.0 * sin(((float)graphCnt + 150.0) * 6.28 / 450 + t));
 		RedrawGraph(&grafico3, graphCnt, (short)random(-50, 50));
@@ -665,7 +675,7 @@ void DrawingTaskFunction(void* parameters) {
 			I_E=adc0val;
 
 			//Atualizacao de caixas
-			RedrawBox(&caixa1, buttonFlag);
+			RedrawBox(&caixa1, shutTimerCount);
 			RedrawBox(&caixa2, PEEP);
 			RedrawBox(&caixa3, volIns);
 			RedrawBox(&caixa4, flxIns);
@@ -675,9 +685,147 @@ void DrawingTaskFunction(void* parameters) {
 #ifdef _DEBUG
 		showFPS();
 #endif
-		while (millis() - time0 < MIN_MIL)
-			vTaskDelay(10/portTICK_PERIOD_MS);
+		while (!drawingFlag)
+			vTaskDelay(2/portTICK_PERIOD_MS);
+		drawingFlag = false;
 	}
+	shutDownFlag = false;
+	booted = false;
+	xTaskCreatePinnedToCore(ResetTaskFunction, "ResetTask", 1000, NULL, PRIORITY_0, &ResetTask, CORE_0);
+	vTaskSuspend(NULL);
+}
+}
+
+void BuzzerTaskFunction(void* parameters){
+	digitalWrite(buzzer, LOW);
+	if(valmax<=val) {
+		digitalWrite(buzzer, HIGH);
+		vTaskDelay(10/portTICK_PERIOD_MS);
+	}
+	else if(valmax==0) {
+		digitalWrite(buzzer, HIGH);
+		vTaskDelay(10/portTICK_PERIOD_MS);
+	}
+	vTaskDelete(NULL);
+}
+
+void ResetTaskFunction(void* parameters){
+	bool shouldRedrawFlag = false;
+	resetFlag = false;
+	sairFlag = false;
+	continuarFlag = false;
+	resetBotao1.border_size = 10;
+	resetBotao2.border_size = 10;
+	resetBotao3.border_size = 10;
+	resetBotao1.border_default_color = 0xa;
+	resetBotao2.border_default_color = 0x9;
+	resetBotao3.border_default_color = 0xc;
+	while(!continuarFlag) {
+		DrawBackground(800, 600, 0x0, 0x0);
+		SetupButton(&resetBotao1, 50, 200, 200, 200, "", "VOLTAR", "");
+		SetupButton(&resetBotao2, 300, 200, 200, 200, "", "DESLIGAR", "");
+		SetupButton(&resetBotao3, 550, 200, 200, 200, "", "REINICIAR", "");
+		vga.setCursor(0,100);
+		vga.printCenter("Sistema de Desligamento:", 0, 800, 0xf, 0x0, 3);
+		vTaskDelay(1000/portTICK_PERIOD_MS);
+		buttonFlag = 0b111;
+
+		while(!shouldRedrawFlag) {
+			if(buttonFlag!=0b111) {
+				switch(buttonFlag){
+					case 0b011:
+						shouldRedrawFlag = true;
+						continuarFlag = true;
+						break;
+					case 0b110:
+						shouldRedrawFlag = true;
+						sairFlag = true;
+						break;
+					case 0b101:
+						shouldRedrawFlag = true;
+						resetFlag = true;
+						break;
+				}
+				buttonFlag=0b111;
+			}
+			while (!drawingFlag)
+				vTaskDelay(2/portTICK_PERIOD_MS);
+			drawingFlag = false;
+		}
+		if(sairFlag) {
+			DrawBackground(800, 600, 0x0, 0x0);
+			SetupButton(&resetBotao1, 50, 200, 200, 200, "", "SIM", "");
+			SetupButton(&resetBotao2, 550, 200, 200, 200, "", "NAO", "");
+			vga.setCursor(0,100);
+			vga.printCenter("TEM CERTEZA QUE DESEJA DESLIGAR?", 0, 800, 0x9, 0x0, 3);
+			
+			shutDownFlag = false;
+			while(sairFlag) {
+				if(buttonFlag!=0b111) {
+					switch(buttonFlag){
+						case 0b011:
+							shutDownFlag = true;
+							sairFlag = false;
+							shouldRedrawFlag = true;
+							break;
+						case 0b110:
+							sairFlag = false;
+							shouldRedrawFlag = true;
+							break;
+					}
+				buttonFlag=0b111;
+				}
+				while (!drawingFlag)
+					vTaskDelay(2/portTICK_PERIOD_MS);
+				drawingFlag = false;
+			}
+			continuarFlag = true;
+			if(shutDownFlag){
+				vTaskDelay(1000/portTICK_PERIOD_MS);
+				if(rtc_gpio_pullup_en(GPIO_NUM_12) == ESP_OK) {
+					if(esp_sleep_enable_ext0_wakeup(GPIO_NUM_12, 0) == ESP_OK) {
+						esp_deep_sleep_start();
+						resetFunc();
+					}
+				}
+			}
+		}
+		else if(resetFlag) {
+			DrawBackground(800, 600, 0x0, 0x0);
+			SetupButton(&resetBotao1, 50, 200, 200, 200, "", "SIM", "");
+			SetupButton(&resetBotao2, 550, 200, 200, 200, "", "NAO", "");
+			vga.setCursor(0,100);
+			vga.printCenter("TEM CERTEZA QUE DESEJA REINICIAR?", 0, 800, 0xb, 0x0, 3);
+			
+			shutDownFlag = false;
+			while(resetFlag) {
+				if(buttonFlag!=0b111) {
+					switch(buttonFlag){
+						case 0b011:
+							shutDownFlag = true;
+							resetFlag = false;
+							shouldRedrawFlag = true;
+							break;
+						case 0b110:
+							resetFlag = false;
+							shouldRedrawFlag = true;
+							break;
+					}
+				buttonFlag=0b111;
+				}
+				while (!drawingFlag)
+					vTaskDelay(2/portTICK_PERIOD_MS);
+				drawingFlag = false;
+			}
+			continuarFlag = true;
+			if(shutDownFlag){
+				resetFunc();
+			}
+		}
+	}
+	xTaskCreatePinnedToCore(SetupDrawTaskFunction, "SetupDrawTask", 10000, NULL, PRIORITY_0, &SetupDrawTask, CORE_0);
+	
+	vTaskDelete(NULL);
 }
 
 void loop() {

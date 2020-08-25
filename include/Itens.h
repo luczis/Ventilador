@@ -167,13 +167,13 @@ void DrawLogo(short xpos, short ypos, char size=1){
 }
 
 //Cria um grafico, recebe um Graph como referencia
-void SetupGraph(Graph* grafico, short xpos, short ypos, short xsize, short ysize, char* title = "", char title_size = 1){
+void SetupGraph(Graph* grafico, short xpos, short ypos, short xsize, short ysize, char* title = "", char title_size = 1, bool print_axis = false){
 	short i=0,j=0;
 	grafico->xpos=xpos;
 	grafico->ypos=ypos;
 	grafico->xsize=xsize;
 	grafico->ysize=ysize;
-	for(i=0;i<grafico->xsize;i++)
+	for(i=0;i<=grafico->xsize;i++)
 		for(j=0;j<grafico->ysize;j++)
 			vga.dot(grafico->xpos+i,grafico->ypos+j,grafico->back_color);
 	for(i=0;i<=grafico->xsize;i++)
@@ -188,6 +188,41 @@ void SetupGraph(Graph* grafico, short xpos, short ypos, short xsize, short ysize
 	
 	vga.setCursor(0, grafico->ypos-vga.font->charHeight*title_size);
 	vga.printCenter(title, grafico->xpos, grafico->xpos+grafico->xsize, grafico->text_color, vga.backColor, title_size);
+
+	if(print_axis) {
+		short num = -(short)((float)grafico->ysize/grafico->ydatasize*(float)grafico->ydataoff);
+		char n = 0;
+		bool sig = 0;
+	
+		//ymin	
+		num = (short)(grafico->ydatasize-grafico->ydataoff);
+		sig=num<0;
+		num ? n=log10(num<0?-num:num)+1+sig:n=1;
+		
+		vga.setCursor(grafico->xpos-vga.font->charWidth*n-(short)(vga.font->charWidth*0.5f),grafico->ypos);
+		vga.print(int2array(num), grafico->text_color, 0, 1);
+		
+		//ymax	
+		num = -(short)((float)grafico->ysize/grafico->ydatasize*(float)grafico->ydataoff);
+		sig=num<0;
+		num ? n=log10(num<0?-num:num)+1+sig:n=1;
+		
+		vga.setCursor(grafico->xpos-vga.font->charWidth*n-(short)(vga.font->charWidth*0.5f),grafico->ypos+grafico->ysize-vga.font->charHeight);
+		vga.print(int2array(num), grafico->text_color, 0, 1);
+
+		//xmin
+		vga.setCursor(grafico->xpos, grafico->ypos+grafico->ysize+(short)(vga.font->charHeight*0.5f));
+		vga.print("0", grafico->text_color, 0, 1);
+		
+		//xmax	
+		num = (short)((float)grafico->xsize/grafico->xdatasize);
+		sig=num<0;
+		num ? n=log10(num<0?-num:num)+1+sig:n=1;
+		
+		vga.setCursor(grafico->xpos+grafico->xsize-vga.font->charWidth*n,grafico->ypos+grafico->ysize+(short)(vga.font->charHeight*0.5f));
+		vga.print(int2array(num), grafico->text_color, 0, 1);
+
+	}
 }
 
 //Utilizado para atualizar o grafico, xdatanum define o valor em x, e newy define o novo valor de y
@@ -348,11 +383,6 @@ void RedrawBox(Box* caixa, unsigned short value){
 	RedrawBox(caixa, int2array(value));}
 void RedrawBox(Box* caixa, float value){
 	RedrawBox(caixa, float2array(value));}
-
-void SetupLegenda(int posix, int posiy, char* text, char color=0xf, char backcolor=0x0, char size=1, bool is_vertical=0){
-	vga.setCursor(posix,posiy);
-	vga.print(text,color,backcolor,size,is_vertical);
-}
 
 void LoopLed(const int button, const int led){
 	if(digitalRead(button)==HIGH){

@@ -1,13 +1,5 @@
-//Funcoes relacionadas ao timer
-hw_timer_t * timerInt = NULL;
-hw_timer_t * timerFPS = NULL;
-
-unsigned int timercount = 0;
-void int1s() {
-	timercount++;
-}
-
 //Funcoes relacionadas aos botoes
+bool shut_but_flag = false;
 byte buttonFlag = 0;
 uint32_t port32val = 0;
 TaskHandle_t ButtonTask;
@@ -28,6 +20,37 @@ void ButtonTaskFunction(void* parameters) {
 		buttonFlag = ((port32val&0x30000)>>16) | ((port32val&0x1000)>>10);
 		vTaskSuspend(NULL);
 	}
+}
+
+//Funcoes relacionadas ao timer
+hw_timer_t * timerInt = NULL;
+hw_timer_t * timerFPS = NULL;
+
+bool drawingFlag = false;
+unsigned int timercount = 0;
+int shutTimerCount = 0;
+void int001s() {
+	if(timercount%10==0 && !shutDownFlag) {
+		port32val=(uint32_t)(*portInputRegister(digitalPinToPort(button0pin)));
+		if(!(0x11000&port32val))
+			shut_but_flag = true;
+		else
+			shut_but_flag = false;
+
+		shut_but_flag ? shutTimerCount++ : shutTimerCount--;
+		if(shutTimerCount > SHUT_TIME) {
+			shutTimerCount = 0;
+			shutDownFlag = true;
+		}
+		else if(shutTimerCount<=0)
+			shutTimerCount = 0;
+	}
+
+	if(timercount >= 10000)
+		timercount = 0;
+	if(timercount%MIN_MIL == 0)
+		drawingFlag = true;
+	timercount++;
 }
 
 //Funcoes relacionadas ao encoder
