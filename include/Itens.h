@@ -1,6 +1,5 @@
 #include "ESP32Lib.h"
 #include "Logo.h"
-#include "Jequiti.h"
 
 struct Graph{
 	unsigned short xpos = 0;
@@ -26,7 +25,9 @@ struct Button{
 	unsigned short ypos = 0;
 	unsigned short xsize = 0;
 	unsigned short ysize = 0;
+	bool config_on = 0;
 	bool is_selected = 0;
+	bool is_changing = 0;
 	char border_size = 2;
 	char u_text_size = 1;
 	char m_text_size = 3;
@@ -35,8 +36,10 @@ struct Button{
 	char u_text_color = 0x8;
 	char m_text_color = 0x8;
 	char b_text_color = 0x8;
+	char border_no_config_color = 0xa;
 	char border_default_color = 0xb;
 	char border_selected_color = 0x9;
+	char border_changing_color = 0xe;
 };
 
 struct Box{
@@ -154,23 +157,8 @@ void DrawLogo(short xpos, short ypos, char size=1){
 			for(k=0;k<size;k++){
 				for(l=0;l<size;l++){
 					if(Logo[i+100*j]==0x8)
-						vga.dot(xpos+i+k,ypos+j+l,0xb);
+						vga.dot(xpos+size*i+k,ypos+size*j+l,0xb);
 					if(Logo[i+100*j]==0xb)
-						vga.dot(xpos+i+k,ypos+j+l,0x8);
-				}
-			}
-		}
-	}
-}
-
-//Funcao superimportante nao remova
-void DrawJequiti(short xpos, short ypos, char size=1){
-	char i=0,j=0,k=0,l=0;
-	for(i=0;i<200;i++){
-		for(j=0;j<120;j++){
-			for(k=0;k<size;k++){
-				for(l=0;l<size;l++){
-					if(Jequiti[i+200*j]==0x8)
 						vga.dot(xpos+size*i+k,ypos+size*j+l,0x8);
 				}
 			}
@@ -179,13 +167,13 @@ void DrawJequiti(short xpos, short ypos, char size=1){
 }
 
 //Cria um grafico, recebe um Graph como referencia
-void SetupGraph(Graph* grafico, short xpos, short ypos, short xsize, short ysize, char* title = "", char title_size = 1){
+void SetupGraph(Graph* grafico, short xpos, short ypos, short xsize, short ysize, char* title = "", char title_size = 1, bool print_axis = false){
 	short i=0,j=0;
 	grafico->xpos=xpos;
 	grafico->ypos=ypos;
 	grafico->xsize=xsize;
 	grafico->ysize=ysize;
-	for(i=0;i<grafico->xsize;i++)
+	for(i=0;i<=grafico->xsize;i++)
 		for(j=0;j<grafico->ysize;j++)
 			vga.dot(grafico->xpos+i,grafico->ypos+j,grafico->back_color);
 	for(i=0;i<=grafico->xsize;i++)
@@ -200,6 +188,41 @@ void SetupGraph(Graph* grafico, short xpos, short ypos, short xsize, short ysize
 	
 	vga.setCursor(0, grafico->ypos-vga.font->charHeight*title_size);
 	vga.printCenter(title, grafico->xpos, grafico->xpos+grafico->xsize, grafico->text_color, vga.backColor, title_size);
+
+	if(print_axis) {
+		short num = -(short)((float)grafico->ysize/grafico->ydatasize*(float)grafico->ydataoff);
+		char n = 0;
+		bool sig = 0;
+	
+		//ymin	
+		num = (short)(grafico->ydatasize-grafico->ydataoff);
+		sig=num<0;
+		num ? n=log10(num<0?-num:num)+1+sig:n=1;
+		
+		vga.setCursor(grafico->xpos-vga.font->charWidth*n-(short)(vga.font->charWidth*0.5f),grafico->ypos);
+		vga.print(int2array(num), grafico->text_color, 0, 1);
+		
+		//ymax	
+		num = -(short)((float)grafico->ysize/grafico->ydatasize*(float)grafico->ydataoff);
+		sig=num<0;
+		num ? n=log10(num<0?-num:num)+1+sig:n=1;
+		
+		vga.setCursor(grafico->xpos-vga.font->charWidth*n-(short)(vga.font->charWidth*0.5f),grafico->ypos+grafico->ysize-vga.font->charHeight);
+		vga.print(int2array(num), grafico->text_color, 0, 1);
+
+		//xmin
+		vga.setCursor(grafico->xpos, grafico->ypos+grafico->ysize+(short)(vga.font->charHeight*0.5f));
+		vga.print("0", grafico->text_color, 0, 1);
+		
+		//xmax	
+		num = (short)((float)grafico->xsize/grafico->xdatasize);
+		sig=num<0;
+		num ? n=log10(num<0?-num:num)+1+sig:n=1;
+		
+		vga.setCursor(grafico->xpos+grafico->xsize-vga.font->charWidth*n,grafico->ypos+grafico->ysize+(short)(vga.font->charHeight*0.5f));
+		vga.print(int2array(num), grafico->text_color, 0, 1);
+
+	}
 }
 
 //Utilizado para atualizar o grafico, xdatanum define o valor em x, e newy define o novo valor de y
@@ -230,11 +253,14 @@ void SetupButton(Button* botao, short xpos, short ypos, short xsize, short ysize
 		for(j=0;j<botao->ysize;j++)
 			vga.dot(botao->xpos+i,botao->ypos+j,botao->back_color);
 	vga.setCursor(0,botao->ypos+botao->border_size);
-	vga.printCenter(up_text, botao->xpos+botao->border_size, botao->xpos+botao->xsize-botao->border_size, botao->u_text_color, botao->back_color, botao->u_text_size);
+	if(*up_text != '\0')
+		vga.printCenter(up_text, botao->xpos+botao->border_size, botao->xpos+botao->xsize-botao->border_size, botao->u_text_color, botao->back_color, botao->u_text_size);
 	vga.setCursor(0,botao->ypos+(botao->ysize-vga.font->charHeight*botao->m_text_size)/2);
-	vga.printCenter(middle_text, botao->xpos+botao->border_size, botao->xpos+botao->xsize-botao->border_size, botao->m_text_color, botao->back_color, botao->m_text_size);
+	if(*middle_text != '\0')
+		vga.printCenter(middle_text, botao->xpos+botao->border_size, botao->xpos+botao->xsize-botao->border_size, botao->m_text_color, botao->back_color, botao->m_text_size);
 	vga.setCursor(0,botao->ypos+botao->ysize-vga.font->charHeight*botao->b_text_size-botao->border_size);
-	vga.printCenter(bottom_text, botao->xpos+botao->border_size, botao->xpos+botao->xsize-botao->border_size, botao->b_text_color, botao->back_color, botao->b_text_size);
+	if(*bottom_text != '\0')
+		vga.printCenter(bottom_text, botao->xpos+botao->border_size, botao->xpos+botao->xsize-botao->border_size, botao->b_text_color, botao->back_color, botao->b_text_size);
 	for(i=0;i<botao->xsize;i++)
 		for(j=0;j<botao->border_size;j++){
 			vga.dot(botao->xpos+i,botao->ypos+j,botao->border_default_color);
@@ -260,20 +286,38 @@ void SetupButton(Button* botao, short xpos, short ypos, short xsize, short ysize
 //Utilizado para atualizar um botao, atualiza o texto central
 void RedrawButton(Button* botao, char* value){
 	short i=0, j=0;
-	for(i=botao->xpos;i<botao->xpos+botao->xsize;i++)
-		for(j=botao->ypos+(botao->ysize-botao->m_text_size*vga.font->charHeight)/2;j<botao->ypos+(botao->ysize+botao->m_text_size*vga.font->charHeight)/2;j++)
-			vga.dot(i,j,botao->back_color);
+	if(*value!='\0')
+		for(i=botao->xpos;i<botao->xpos+botao->xsize;i++)
+			for(j=botao->ypos+(botao->ysize-botao->m_text_size*vga.font->charHeight)/2;j<botao->ypos+(botao->ysize+botao->m_text_size*vga.font->charHeight)/2;j++)
+				vga.dot(i,j,botao->back_color);
 	vga.setCursor(0,botao->ypos+(botao->ysize-vga.font->charHeight*botao->m_text_size)/2);
-	vga.printCenter(value, botao->xpos+botao->border_size, botao->xpos+botao->xsize-botao->border_size, botao->m_text_color, botao->back_color, botao->m_text_size);
+	if(*value!='\0')
+		vga.printCenter(value, botao->xpos+botao->border_size, botao->xpos+botao->xsize-botao->border_size, botao->m_text_color, botao->back_color, botao->m_text_size);
 	for(i=0;i<botao->xsize;i++)
-		for(j=0;j<botao->border_size;j++){
-			vga.dot(botao->xpos+i,botao->ypos+j,botao->is_selected ? botao->border_selected_color : botao->border_default_color);
-			vga.dot(botao->xpos+i,botao->ypos+botao->ysize-botao->border_size+j,botao->is_selected ? botao->border_selected_color : botao->border_default_color);
+		if(botao->config_on) {
+			for(j=0;j<botao->border_size;j++){
+				vga.dot(botao->xpos+i,botao->ypos+j,botao->is_changing ? botao->border_changing_color : (botao->is_selected ? botao->border_selected_color : botao->border_default_color));
+				vga.dot(botao->xpos+i,botao->ypos+botao->ysize-botao->border_size+j,botao->is_changing ? botao->border_changing_color : (botao->is_selected ? botao->border_selected_color : botao->border_default_color));
+			}
+		}
+		else {
+			for(j=0;j<botao->border_size;j++){
+				vga.dot(botao->xpos+i,botao->ypos+j,botao->border_no_config_color);
+				vga.dot(botao->xpos+i,botao->ypos+botao->ysize-botao->border_size+j,botao->border_no_config_color);
+			}
 		}
 	for(i=0;i<botao->ysize;i++)
-		for(j=0;j<botao->border_size;j++){
-			vga.dot(botao->xpos+j,botao->ypos+i,botao->is_selected ? botao->border_selected_color : botao->border_default_color);
-			vga.dot(botao->xpos+j+botao->xsize-botao->border_size,botao->ypos+i,botao->is_selected ? botao->border_selected_color : botao->border_default_color);
+		if(botao->config_on) {
+			for(j=0;j<botao->border_size;j++){
+				vga.dot(botao->xpos+j,botao->ypos+i,botao->is_changing ? botao->border_changing_color : (botao->is_selected ? botao->border_selected_color : botao->border_default_color));
+				vga.dot(botao->xpos+j+botao->xsize-botao->border_size,botao->ypos+i,botao->is_changing ? botao->border_changing_color : (botao->is_selected ? botao->border_selected_color : botao->border_default_color));
+			}
+		}
+		else {
+			for(j=0;j<botao->border_size;j++){
+				vga.dot(botao->xpos+j,botao->ypos+i,botao->border_no_config_color);
+				vga.dot(botao->xpos+j+botao->xsize-botao->border_size,botao->ypos+i,botao->border_no_config_color);
+			}
 		}
 }
 void RedrawButton(Button* botao, int value){
@@ -298,11 +342,14 @@ void SetupBox(Box* caixa, short xpos, short ypos, short xsize, short ysize, char
 		for(j=0;j<caixa->ysize;j++)
 			vga.dot(caixa->xpos+i,caixa->ypos+j,caixa->back_color);
 	vga.setCursor(0,caixa->ypos+caixa->border_size);
-	vga.printCenter(up_text, caixa->xpos+caixa->border_size, caixa->xpos+caixa->xsize-caixa->border_size, caixa->u_text_color, caixa->back_color, caixa->u_text_size);
+	if(*up_text != '\0')
+		vga.printCenter(up_text, caixa->xpos+caixa->border_size, caixa->xpos+caixa->xsize-caixa->border_size, caixa->u_text_color, caixa->back_color, caixa->u_text_size);
 	vga.setCursor(0,caixa->ypos+(caixa->ysize-vga.font->charHeight*caixa->m_text_size)/2);
-	vga.printCenter(middle_text, caixa->xpos+caixa->border_size, caixa->xpos+caixa->xsize-caixa->border_size, caixa->m_text_color, caixa->back_color, caixa->m_text_size);
+	if(*middle_text != '\0')
+		vga.printCenter(middle_text, caixa->xpos+caixa->border_size, caixa->xpos+caixa->xsize-caixa->border_size, caixa->m_text_color, caixa->back_color, caixa->m_text_size);
 	vga.setCursor(0,caixa->ypos+caixa->ysize-vga.font->charHeight*caixa->b_text_size-caixa->border_size);
-	vga.printCenter(bottom_text, caixa->xpos+caixa->border_size, caixa->xpos+caixa->xsize-caixa->border_size, caixa->b_text_color, caixa->back_color, caixa->b_text_size);
+	if(*bottom_text != '\0')
+		vga.printCenter(bottom_text, caixa->xpos+caixa->border_size, caixa->xpos+caixa->xsize-caixa->border_size, caixa->b_text_color, caixa->back_color, caixa->b_text_size);
 }
 void SetupBox(Box* caixa, short xpos, short ypos, short xsize, short ysize, char* up_text, int  middle_text, char* bottom_text = ""){
 	SetupBox(caixa, xpos, ypos, xsize, ysize, up_text, int2array(middle_text), bottom_text);}
@@ -318,11 +365,13 @@ void SetupBox(Box* caixa, short xpos, short ypos, short xsize, short ysize, char
 //Utilizado para atualizar uma caixa, atualiza o texto central
 void RedrawBox(Box* caixa, char* value){
 	short i=0, j=0;
-	for(i=caixa->xpos;i<caixa->xpos+caixa->xsize;i++)
-		for(j=caixa->ypos+(caixa->ysize-caixa->m_text_size*vga.font->charHeight)/2;j<caixa->ypos+(caixa->ysize+caixa->m_text_size*vga.font->charHeight)/2;j++)
-			vga.dot(i,j,caixa->back_color);
+	if(*value!='\0')
+		for(i=caixa->xpos;i<caixa->xpos+caixa->xsize;i++)
+			for(j=caixa->ypos+(caixa->ysize-caixa->m_text_size*vga.font->charHeight)/2;j<caixa->ypos+(caixa->ysize+caixa->m_text_size*vga.font->charHeight)/2;j++)
+				vga.dot(i,j,caixa->back_color);
 	vga.setCursor(0,caixa->ypos+(caixa->ysize-vga.font->charHeight*caixa->m_text_size)/2);
-	vga.printCenter(value, caixa->xpos+caixa->border_size, caixa->xpos+caixa->xsize-caixa->border_size, caixa->m_text_color, caixa->back_color, caixa->m_text_size);
+	if(*value != '\0')
+		vga.printCenter(value, caixa->xpos+caixa->border_size, caixa->xpos+caixa->xsize-caixa->border_size, caixa->m_text_color, caixa->back_color, caixa->m_text_size);
 }
 void RedrawBox(Box* caixa, int value){
 	RedrawBox(caixa, int2array(value));}
@@ -334,11 +383,6 @@ void RedrawBox(Box* caixa, unsigned short value){
 	RedrawBox(caixa, int2array(value));}
 void RedrawBox(Box* caixa, float value){
 	RedrawBox(caixa, float2array(value));}
-
-void SetupLegenda(int posix, int posiy, char* text, char color=0xf, char backcolor=0x0, char size=1, bool is_vertical=0){
-	vga.setCursor(posix,posiy);
-	vga.print(text,color,backcolor,size,is_vertical);
-}
 
 void LoopLed(const int button, const int led){
 	if(digitalRead(button)==HIGH){
