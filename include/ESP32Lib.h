@@ -27,6 +27,7 @@
 #define PRIORITY_1 1
 #define PRIORITY_2 2
 #define PRIORITY_3 3
+#define PRIORITY_4 4
 
 #define TIMER_0 0
 #define TIMER_1 1

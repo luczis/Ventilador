@@ -24,12 +24,12 @@ void ButtonTaskFunction(void* parameters) {
 
 //Funcoes relacionadas ao timer
 hw_timer_t * timerInt = NULL;
-hw_timer_t * timerFPS = NULL;
+hw_timer_t * timerRes = NULL;
 
 bool drawingFlag = false;
 unsigned int timercount = 0;
 int shutTimerCount = 0;
-void int001s() {
+void int0_01s() {
 	if(timercount%10==0 && !shutDownFlag) {
 		port32val=(uint32_t)(*portInputRegister(digitalPinToPort(button0pin)));
 		if(!(0x11000&port32val))
@@ -51,6 +51,17 @@ void int001s() {
 	if(timercount%MIN_MIL == 0)
 		drawingFlag = true;
 	timercount++;
+}
+
+unsigned int respirador_timercounter = 0;
+void int0_001s() {
+	if(respiradorOn) {
+		vTaskResume(RespiradorTask);
+	}
+
+	if(respirador_timercounter >= 10000)
+		respirador_timercounter = 0;
+	respirador_timercounter++;
 }
 
 //Funcoes relacionadas ao encoder

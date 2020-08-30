@@ -83,7 +83,7 @@ char* float2array(float num){
 		num=-num; sig=1;
 	}
 	char decimals;
-	num>0.1f ? decimals=4-sig-log10(num):decimals=4-sig;
+	num>0.1f ? decimals=MAX_DEC-sig-log10(num):decimals=MAX_DEC-sig;
 	if(decimals<0)
 		decimals=0;
 	int num_i=(int)(pow(10,decimals)*num);
@@ -235,11 +235,11 @@ void RedrawGraph(Graph* grafico, short xdatanum, float newy){
 	for(i=0; i<grafico->ysize;i++){
 		vga.dot(grafico->xpos+xdatanum,grafico->ypos+i,grafico->back_color);
 	}
-	vga.dot(grafico->xpos+xdatanum,yres>ymin ? ymin : yres<ymax ? ymax : yres, grafico->data_color);
 	if(grafico->ydataoff > 0){
 		short xaxis=grafico->ysize-(short)((float)grafico->ysize/grafico->ydatasize*(float)grafico->ydataoff)+grafico->ypos;
 		vga.dot(grafico->xpos+xdatanum,xaxis,grafico->axis_color);
 	}
+	vga.dot(grafico->xpos+xdatanum,yres>ymin ? ymin : yres<ymax ? ymax : yres, grafico->data_color);
 }
 
 //Cria um botao, recebe um Button como referencia
