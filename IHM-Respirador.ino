@@ -13,8 +13,20 @@
 #include "include/Fonts/Font8x8.h"
 #include "include/Fonts/Font6x8.h"
 
-//pin configuration
+//Configuracao de Pinos
 #include "include/pinout.h"
+
+//Configuracoes gerais
+//#define _DEBUG				//Comente para desativar funcoes de debug
+#define MAX_DEC 3				//Define a quantidade maxima de decimais a ser mostrada no display (Recomenda-se menor que 4)
+#define MIN_MIL 2  				//O tempo minimo, em centiseg para atualizar a tela
+#define SHUT_TIME 20			//O tempo, em deciseg, para entrar na tela de shutdown
+#define INFO_FRAMES_UPDATE 10	//Em quantos quadros os parametros são atualizados
+#define GRAPH_SIZE 500			//Em quantos quadros os parametros são atualizados
+#define LOGO_INICIAL			//Comente para desativar a logo inicial
+#define TEMPO_LOGO 5			//Tempo que a logo fica ativa no inicio
+#define ADC_SAMPLES 50			//Quantidade de amostras ADCs para fazer uma media
+#define _CLOCK					//Ativa o relogio -- Ainda nao implementado --
 
 float valmax=0;
 float val=0;
@@ -24,20 +36,39 @@ int contreset=0;
 int flag=1;
 int flag1=0;
 
-unsigned long time0;
+//Definicao de parametros enum
+enum Enum_Paciente {
+	NEONATAL,
+	PEDIATRICO,
+	ADULTO,
+	PACIENTE_MAX_COUNT
+};
+enum Enum_Modo_Operacao {
+	PCV,
+	NIV,
+	VCV,
+	MODO_OPERACAO_MAX_COUNT
+};
 
 //Parametros de inicializacao
+char paciente = NEONATAL;
+char modo_operacao = PCV;
 float altura_paciente = 1.50f;
 float peso_paciente = 70;
 
 //Parametros do respirador
-float FiO2 = .21f;	//0.21	-	1.0 	%
-float PEEP = 0;		//0		-	20 		cm H2O
-float volIns = 50;	//50	-	700 	mL
-float flxIns = 0;	//0		-	70 		L/min
-float freRes = 8;	//8		-	40		RPM
-float tmpIns = 0.3f;//0.3	-	2.0		s
-float I_E = 1;		//
+					//[MIN]	-	[MAX]	[UNIDADE]	[NOME]
+float FiO2 = .21f;	//0.21	-	1.0 	%			Fracao de oxigenio inspirado
+float PEEP = 0;		//0		-	20 		cm H2O		Pressao expiratoria final positiva
+float volIns = 50;	//50	-	700 	mL			Volume inspiratorio
+float flxIns = 0;	//0		-	70 		L/min		Fluxo inspiratorio
+float freRes = 8;	//8		-	40		RPM			Frequencia respiratoria
+float tmpIns = 0.3f;//0.3	-	2.0		s			Tempo inspiratorio
+float tmpCmp = 0.3f;//0.3	-	2.0		s			Tempo completo
+float I_E = 0.0;	//								Relacao inspiracao/expiracao
+
+//Valores dos ADCs
+unsigned int adc0val = 0, adc1val = 0, adc2val = 0;
 
 //Alarmes
 int alrm_pressao = 100;
@@ -45,15 +76,19 @@ int alrm_vazamento = 100;
 int alrm_queda_rede = 100;
 
 //Valores de incremento
-const float inc_freRes = 0.1f;
+const float inc_freRes = 1;
 const float inc_tmpIns = 0.01f;
 const int inc_alrm_pressao = 1;
 const int inc_alrm_vazamento = 1;
 const int inc_alrm_queda_rede = 1;
 
-//Valores temporarios dos botoes
+//Valores temporarios para atualizar no final da config
+bool tmp_respiradorOn = false;
 float tmp_freRes = 8;
 float tmp_tmpIns = 0.3f;
+float tmp_tmpExp = 0.3f;
+float tmp_tmpCmp = 0.3f;
+float tmp_I_E = 1;
 int tmp_alrm_pressao = 100;
 int tmp_alrm_vazamento = 100;
 int tmp_alrm_queda_rede = 100;
@@ -68,36 +103,33 @@ bool button0press = 0;
 bool button1press = 0;
 bool button2press = 0;
 bool booted = false;
+bool respiradorOn = false;
 bool startPhase = true;
 bool shutDownFlag = false;
 bool resetFlag = false;
 bool sairFlag = false;
 bool continuarFlag = false;
 
-//configuracoes
-#define _DEBUG					//Comente para desativar funcoes de debug
-#define MIN_MIL 2  				//O tempo minimo, em centiseg para atualizar a tela
-#define SHUT_TIME 20			//O tempo, em deciseg, para entrar na tela de shutdown
-#define INFO_FRAMES_UPDATE 10	//Em quantos quadros os parametros são atualizados
-#define GRAPH_SIZE 500			//Em quantos quadros os parametros são atualizados
-#define LOGO_INICIAL			//Comente para desativar a logo inicial
-#define TEMPO_LOGO 5			//Tempo que a logo fica ativa no inicio
-#define _CLOCK					//Ativa o relogio
-
+//Criacao do objeto grafico principal
 VGA3BitI vga;
+
 #include "include/Itens.h"
 
+//Itens para tela de inicializacao
 Button startBotao1, startBotao2, startBotao3;
 Button startBotao4, startBotao5;
 Button startBotao6, startBotao7, startBotao8;
 Button startBotao9, startBotao10;
 
+//Itens para tela de desligamento
 Button resetBotao1, resetBotao2, resetBotao3;
 
+//Itens para tela principal
 Graph grafico1, grafico2, grafico3;
 Box caixa1, caixa2, caixa3, caixa4, caixa5;
-Button botao1, botao2, botao3, botao4, botao5;
+Button botao_onoff, botao1, botao2, botao3, botao4, botao5;
 
+//Gerenciadores de tarefas
 TaskHandle_t DrawingTask;
 TaskHandle_t StartTask;
 TaskHandle_t SetupDrawTask;
@@ -105,6 +137,7 @@ TaskHandle_t EndTask;
 TaskHandle_t BuzzerTask;
 TaskHandle_t ResetTask;
 
+//Definicao de funcoes de tarefas
 void DrawingTaskFunction(void* parameters);
 void StartTaskFunction(void* parameters);
 void SetupDrawTaskFunction(void* parameters);
@@ -112,9 +145,7 @@ void EndTaskFunction(void* parameters);
 void BuzzerTaskFunction(void* parameters);
 void ResetTaskFunction(void* parameters);
 
-void ExternalInterrupt();
-void ButtonInterrupt();
-
+#include "funcoes_respirador.h"
 #include "include/hardware_func.h"
 
 void setup()
@@ -125,14 +156,17 @@ void setup()
 	//Configuracao de seed aleatoria
 	randomSeed(analogRead(0));
 
-	//Configuração do timer para interrupcoes
+	//Configuração do timer para interrupcoes gerais
 	timerInt = timerBegin(TIMER_0, 80, true);
-	timerAttachInterrupt(timerInt, &int001s, true);
+	timerAttachInterrupt(timerInt, &int0_01s, true);
 	timerAlarmWrite(timerInt, 10000, true);
 	timerAlarmEnable(timerInt);
 
-	//Configuração do timer para imagem
-	timerFPS = timerBegin(TIMER_1, 80, true);
+	//Configuração do timer para interrupcoes do respirador ADC/valvulas
+	timerRes = timerBegin(TIMER_1, 80, true);
+	timerAttachInterrupt(timerRes, &int0_001s, true);
+	timerAlarmWrite(timerRes, 10000, true);
+	timerAlarmEnable(timerRes);
 
 	//Utilizado para debug, mostra o que causou o ultimo reset do sistema
 	Serial.println("CPU0 reset reason:");
@@ -143,15 +177,16 @@ void setup()
 	verbose_print_reset_reason(rtc_get_reset_reason(1));
 
 	//Configuracao de pinos
-	pinMode(encbut0pin, INPUT);
+	pinMode(valve0pin, OUTPUT);
+	pinMode(valve1pin, OUTPUT);
+	pinMode(valve2pin, OUTPUT);
+	pinMode(encbutpin, INPUT);
 	pinMode(button0pin, INPUT_PULLUP);
 	pinMode(button1pin, INPUT_PULLUP);
 	pinMode(button2pin, INPUT_PULLUP);
-	pinMode(int0pin ,INPUT_PULLUP);
 	pinMode(encApin ,INPUT_PULLDOWN);
 	pinMode(encBpin ,INPUT_PULLDOWN);
 	pinMode(buzzer, OUTPUT);
-	attachInterrupt(digitalPinToInterrupt(int0pin), ExternalInterrupt, FALLING);
 	attachInterrupt(digitalPinToInterrupt(button0pin), ButtonInterrupt, FALLING);
 	attachInterrupt(digitalPinToInterrupt(button1pin), ButtonInterrupt, FALLING);
 	attachInterrupt(digitalPinToInterrupt(button2pin), ButtonInterrupt, FALLING);
@@ -165,25 +200,18 @@ void setup()
 	vga.setTextColor(0x8);
 	vga.setFrameBufferCount(1);
 	
-	//Definicao de tarefas de setup
-	xTaskCreate(EncoderTaskFunction, "EncoderTask", 1000, NULL, PRIORITY_2, &EncoderTask);
-	xTaskCreate(ButtonTaskFunction, "ButtonTask", 1000, NULL, PRIORITY_2, &ButtonTask);
-//	xTaskCreate(StartTaskFunction, "StartTask", 1000, NULL, PRIORITY_0, &StartTask);
+	//Definicao de tarefas iniciais
+	xTaskCreatePinnedToCore(EncoderTaskFunction, "EncoderTask", 700, NULL, PRIORITY_2, &EncoderTask, CORE_1);
+	xTaskCreatePinnedToCore(ButtonTaskFunction, "ButtonTask", 700, NULL, PRIORITY_2, &ButtonTask, CORE_1);
 	xTaskCreatePinnedToCore(StartTaskFunction, "StartTask", 1000, NULL, PRIORITY_0, &StartTask, CORE_0);
-	xTaskCreate(BuzzerTaskFunction, "BuzzerTask", 1000, NULL, PRIORITY_0, &BuzzerTask);
-//	xTaskCreatePinnedToCore(ResetTaskFunction, "ResetTask", 1000, NULL, PRIORITY_2, &ResetTask, CORE_0);
+	xTaskCreate(BuzzerTaskFunction, "BuzzerTask", 500, NULL, PRIORITY_0, &BuzzerTask);
+	
 }
+
+//Funcao magica que aponta para o comeco da memoria
 void(* resetFunc) (void) = 0;
 
-unsigned int counter1 = 0;
-float t = 0.0f;
-unsigned int value1 = 0;
-unsigned int adc0val = 0, adc1val = 0, adc2val = 0;
-
-//Inicia tarefas quando ocorre interrupcoes
-void ExternalInterrupt() {
-}
-
+unsigned int start_frame_counter = 0;
 //Tarefa de inicializacao do sistema
 void StartTaskFunction(void* parameters) {
 	booted = false;
@@ -241,11 +269,9 @@ void StartTaskFunction(void* parameters) {
 	changing_mode = false;
 	config_mode = false;
 	while(startPhase){
-		time0 = millis();
-		
-    	counter1 >= 450 ? counter1 = 0 : counter1++;
+    	start_frame_counter >= 450 ? start_frame_counter = 0 : start_frame_counter++;
 
-    	if (counter1 % INFO_FRAMES_UPDATE == 0) {
+    	if (start_frame_counter % INFO_FRAMES_UPDATE == 0) {
 			if(buttonFlag!=0b111) {
 				switch(buttonFlag){
 					case 0b110:
@@ -264,6 +290,14 @@ void StartTaskFunction(void* parameters) {
 
 			if(currentRow!=pastRow){
 				pastRow=currentRow;
+				switch(currentRow){
+					case 0:
+						decoder = paciente;
+						break;
+					case 2:
+						decoder = modo_operacao;
+						break;
+				}
 				startBotao1.is_selected ? startBotao1.border_no_config_color = settedColor : startBotao1.border_no_config_color = notSetColor;	
 				startBotao2.is_selected ? startBotao2.border_no_config_color = settedColor : startBotao2.border_no_config_color = notSetColor;	
 				startBotao3.is_selected ? startBotao3.border_no_config_color = settedColor : startBotao3.border_no_config_color = notSetColor;	
@@ -298,21 +332,24 @@ void StartTaskFunction(void* parameters) {
 					startBotao1.config_on = true;
 					startBotao2.config_on = true;
 					startBotao3.config_on = true;
-					switch(decoder%3){
-						case 0:
+					switch(decoder % PACIENTE_MAX_COUNT){
+						case NEONATAL:
 							startBotao1.is_selected = true;
 							startBotao2.is_selected = false;
 							startBotao3.is_selected = false;
+							paciente = NEONATAL;
 							break;
-						case 1:
+						case PEDIATRICO:
 							startBotao1.is_selected = false;
 							startBotao2.is_selected = true;
 							startBotao3.is_selected = false;
+							paciente = PEDIATRICO;
 							break;
-						case 2:
+						case ADULTO:
 							startBotao1.is_selected = false;
 							startBotao2.is_selected = false;
 							startBotao3.is_selected = true;
+							paciente = ADULTO;
 							break;
 					}
 					RedrawButton(&startBotao1, "");
@@ -357,24 +394,28 @@ void StartTaskFunction(void* parameters) {
 					RedrawButton(&startBotao5, altura_paciente);
 					break;
 				case 2:
+					decoder = modo_operacao;
 					startBotao6.config_on = true;
 					startBotao7.config_on = true;
 					startBotao8.config_on = true;
-					switch(decoder%3){
-						case 0:
+					switch(decoder % MODO_OPERACAO_MAX_COUNT){
+						case PCV:
 							startBotao6.is_selected = true;
 							startBotao7.is_selected = false;
 							startBotao8.is_selected = false;
+							modo_operacao = PCV;
 							break;
-						case 1:
+						case NIV:
 							startBotao6.is_selected = false;
 							startBotao7.is_selected = true;
 							startBotao8.is_selected = false;
+							modo_operacao = NIV;
 							break;
-						case 2:
+						case VCV:
 							startBotao6.is_selected = false;
 							startBotao7.is_selected = false;
 							startBotao8.is_selected = true;
+							modo_operacao = VCV;
 							break;
 					}
 					RedrawButton(&startBotao6, "");
@@ -426,7 +467,7 @@ void StartTaskFunction(void* parameters) {
 void SetupDrawTaskFunction(void* parameters) {
 	//Desenho de itens fixos
 	DrawBackground(800, 600, 0xc, 0xc);
-	DrawLogo(675, 10);
+	DrawLogo(550, 10);
 
 	//Configuracoes dos graficos
 	grafico1.ydataoff = 75;
@@ -450,250 +491,278 @@ void SetupDrawTaskFunction(void* parameters) {
 	SetupBox(&caixa5, 550, 500, 100, 80, "Relacao I:E", "", "");
 	
 	//Configuracoes de botoes
+	botao_onoff.m_text_size = 3;
+	SetupButton(&botao_onoff, 675, 30, 100, 50, "Respirador", "", "");
 	SetupButton(&botao1, 675, 100, 100, 80, "Tempo Inspiratorio", "", "s");
 	SetupButton(&botao2, 675, 200, 100, 80, "Frequencia Respiratoria", "", "RPM");
 	SetupButton(&botao3, 675, 300, 100, 80, "Alarme\31Pressao Maxima\31em\31Vias", "", "");
 	SetupButton(&botao4, 675, 400, 100, 80, "Alarme Vazamento", "", "");
 	SetupButton(&botao5, 675, 500, 100, 80, "Alarme Queda de Rede de Gases", "", "");
 
-	if(!continuarFlag)
-		xTaskCreatePinnedToCore(DrawingTaskFunction, "DrawingTask", 10000, NULL, PRIORITY_1, &DrawingTask, CORE_0);
+	if(!continuarFlag) {
+		xTaskCreatePinnedToCore(DrawingTaskFunction, "DrawingTask", 7000, NULL, PRIORITY_1, &DrawingTask, CORE_0);
+		xTaskCreatePinnedToCore(RespiradorTaskFunction, "RespiradorTask", 3000, NULL, PRIORITY_3, &RespiradorTask, CORE_1);
+	}
 	else
 		vTaskResume(DrawingTask);
+
 	vTaskDelete(NULL);
 }
 
 //Tarefa utilizada para desenhar atualizacoes
 void DrawingTaskFunction(void* parameters) {
 	static unsigned short graphCnt = 0;
-while(1){
-	config_mode = false;
-	changing_mode = false;
-	while (!shutDownFlag){
-		time0 = millis();
-
-		//Atualizacao de graficos
-		graphCnt >= GRAPH_SIZE ? graphCnt = 0 : graphCnt++;
-		RedrawGraph(&grafico1, graphCnt, 50.0 * sin((float)graphCnt * 6.28 / 450 + t));
-		RedrawGraph(&grafico2, graphCnt, 70.0 * sin(((float)graphCnt + 150.0) * 6.28 / 450 + t));
-		RedrawGraph(&grafico3, graphCnt, (short)random(-50, 50));
-
-		t > 6.28 ? t = 0 : t += 0.01;
-
-		//Atualizacao da visualizacao dos parametros
-		if (graphCnt % INFO_FRAMES_UPDATE == 0) {
-			value1++;
-			adc0val = analogRead(adc0pin);
-			adc1val = analogRead(adc1pin);
-
-			if(buttonFlag!=0b111) {
-				confirm_mode = false;
-				discard_mode = false;
-				switch(buttonFlag){
-					case 0b110:
-						if(config_mode)
-							confirm_mode = true;
-						break;
-					case 0b011:
-						if(!config_mode)
-							config_mode = true;
-						else
-							discard_mode = true;
-						break;
-					case 0b101:
-						if(config_mode)
-							changing_mode ^= true;
-						else
-							changing_mode = false;
-						break;
-				}
-				buttonFlag=0b111;
-			}
-
-			//Atualizacao de botoes
-			if(!config_mode) {
-				if(config_mode!=config_mode_past) {
-					config_mode_past = config_mode;
-					botao1.config_on = config_mode;
-					botao2.config_on = config_mode;
-					botao3.config_on = config_mode;
-					botao4.config_on = config_mode;
-					botao5.config_on = config_mode;
-				}
-				RedrawButton(&botao1, tmpIns);
-				RedrawButton(&botao2, freRes);
-				RedrawButton(&botao3, alrm_pressao);
-				RedrawButton(&botao4, alrm_vazamento);
-				RedrawButton(&botao5, alrm_queda_rede);
-				tmp_tmpIns = tmpIns;
-				tmp_freRes = freRes;
-				tmp_alrm_pressao = alrm_pressao;
-				tmp_alrm_vazamento = alrm_vazamento;
-				tmp_alrm_queda_rede = alrm_queda_rede;
-			}
-			else {
-				if(!changing_mode) {
-					if(confirm_mode) {
-						tmpIns = tmp_tmpIns;
-						freRes = tmp_freRes;
-						alrm_pressao = tmp_alrm_pressao;
-						alrm_vazamento = tmp_alrm_vazamento;
-						alrm_queda_rede = tmp_alrm_queda_rede;
-						confirm_mode = false;
-						config_mode = false;
-					}
-					else if(discard_mode) {
-						discard_mode = false;
-						config_mode = false;
-					}
-				}
-				static byte changing_button;
-				if(config_mode!=config_mode_past) {
-					config_mode_past = config_mode;
-					botao1.config_on = config_mode;
-					botao2.config_on = config_mode;
-					botao3.config_on = config_mode;
-					botao4.config_on = config_mode;
-					botao5.config_on = config_mode;
-				}
-				if(changing_mode) {
-					botao1.is_changing = false;
-					botao2.is_changing = false;
-					botao3.is_changing = false;
-					botao4.is_changing = false;
-					botao5.is_changing = false;
-					switch(changing_button){
-						case 0:
-							botao1.is_changing = true;
+	decoder = 0;
+	decoderPast = 1;
+	static byte changing_button = 0;
+	while(1){
+		config_mode = false;
+		changing_mode = false;
+		while (!shutDownFlag) {
+			//Atualizacao de graficos
+			graphCnt >= GRAPH_SIZE ? graphCnt = 0 : graphCnt++;
+			RedrawGraph(&grafico1, graphCnt, adc0val);
+			RedrawGraph(&grafico2, graphCnt, adc1val);
+			RedrawGraph(&grafico3, graphCnt, adc2val);
+	
+			//Atualizacao da visualizacao dos parametros
+			if (graphCnt % INFO_FRAMES_UPDATE == 0) {
+				if(buttonFlag != 0b111) {
+					confirm_mode = false;
+					discard_mode = false;
+					switch(buttonFlag){
+						case 0b110:
+							if(config_mode)
+								confirm_mode = true;
 							break;
-						case 1:
-							botao2.is_changing = true;
+						case 0b011:
+							if(!config_mode)
+								config_mode = true;
+							else
+								discard_mode = true;
 							break;
-						case 2:
-							botao3.is_changing = true;
-							break;
-						case 3:
-							botao4.is_changing = true;
-							break;
-						case 4:
-							botao5.is_changing = true;
+						case 0b101:
+							if(config_mode)
+								changing_mode ^= true;
+							else
+								changing_mode = false;
 							break;
 					}
+					buttonFlag = 0b111;
+				}
+	
+				//Atualizacao de botoes
+				if(!config_mode) {
+					if(config_mode!=config_mode_past) {
+						config_mode_past = config_mode;
+						botao_onoff.config_on = config_mode;
+						botao1.config_on = config_mode;
+						botao2.config_on = config_mode;
+						botao3.config_on = config_mode;
+						botao4.config_on = config_mode;
+						botao5.config_on = config_mode;
+					}
+					respiradorOn ? botao_onoff.m_text_color = 0xa : botao_onoff.m_text_color = 0x9;
+					respiradorOn ? RedrawButton(&botao_onoff, "On") : RedrawButton(&botao_onoff, "Off");
+					RedrawButton(&botao1, tmpIns);
+					RedrawButton(&botao2, freRes);
+					RedrawButton(&botao3, alrm_pressao);
+					RedrawButton(&botao4, alrm_vazamento);
+					RedrawButton(&botao5, alrm_queda_rede);
+					tmp_respiradorOn = respiradorOn;
+					tmp_freRes = freRes;
+					tmp_tmpIns = tmpIns;
+					tmp_tmpCmp = tmpCmp;
+					tmp_I_E = I_E;
+					tmp_alrm_pressao = alrm_pressao;
+					tmp_alrm_vazamento = alrm_vazamento;
+					tmp_alrm_queda_rede = alrm_queda_rede;
 				}
 				else {
-					botao1.is_changing = false;
-					botao2.is_changing = false;
-					botao3.is_changing = false;
-					botao4.is_changing = false;
-					botao5.is_changing = false;
-				}
-				RedrawButton(&botao1, tmp_tmpIns);
-				RedrawButton(&botao2, tmp_freRes);
-				RedrawButton(&botao3, tmp_alrm_pressao);
-				RedrawButton(&botao4, tmp_alrm_vazamento);
-				RedrawButton(&botao5, tmp_alrm_queda_rede);
-
-				if(decoder!=decoderPast) {
-					if(!changing_mode){
-						botao1.is_selected = false;
-						botao2.is_selected = false;
-						botao3.is_selected = false;
-						botao4.is_selected = false;
-						botao5.is_selected = false;
-						changing_button = decoder%5;
+					if(!changing_mode) {
+						if(confirm_mode) {
+							respiradorOn = tmp_respiradorOn;
+							freRes = tmp_freRes;
+							tmpIns = tmp_tmpIns;
+							tmpCmp = tmp_tmpCmp;
+							I_E = tmp_I_E;
+							alrm_pressao = tmp_alrm_pressao;
+							alrm_vazamento = tmp_alrm_vazamento;
+							alrm_queda_rede = tmp_alrm_queda_rede;
+							confirm_mode = false;
+							config_mode = false;
+						}
+						else if(discard_mode) {
+							discard_mode = false;
+							config_mode = false;
+						}
+					}
+					if(config_mode!=config_mode_past) {
+						decoder = 0;
+						config_mode_past = config_mode;
+						botao_onoff.config_on = config_mode;
+						botao1.config_on = config_mode;
+						botao2.config_on = config_mode;
+						botao3.config_on = config_mode;
+						botao4.config_on = config_mode;
+						botao5.config_on = config_mode;
+					}
+					if(changing_mode) {
+						botao_onoff.is_changing = false;
+						botao1.is_changing = false;
+						botao2.is_changing = false;
+						botao3.is_changing = false;
+						botao4.is_changing = false;
+						botao5.is_changing = false;
 						switch(changing_button){
 							case 0:
-								botao1.is_selected = true;
+								botao_onoff.is_changing = true;
 								break;
 							case 1:
-								botao2.is_selected = true;
+								botao1.is_changing = true;
 								break;
 							case 2:
-								botao3.is_selected = true;
+								botao2.is_changing = true;
 								break;
 							case 3:
-								botao4.is_selected = true;
+								botao3.is_changing = true;
 								break;
 							case 4:
-								botao5.is_selected = true;
+								botao4.is_changing = true;
+								break;
+							case 5:
+								botao5.is_changing = true;
 								break;
 						}
 					}
 					else {
+						botao_onoff.is_changing = false;
+						botao1.is_changing = false;
+						botao2.is_changing = false;
+						botao3.is_changing = false;
+						botao4.is_changing = false;
+						botao5.is_changing = false;
+					}
+					tmp_respiradorOn ? botao_onoff.m_text_color = 0xa : botao_onoff.m_text_color = 0x9;
+					tmp_respiradorOn ? RedrawButton(&botao_onoff, "On") : RedrawButton(&botao_onoff, "Off");
+					RedrawButton(&botao1, tmp_tmpIns);
+					RedrawButton(&botao2, tmp_freRes);
+					RedrawButton(&botao3, tmp_alrm_pressao);
+					RedrawButton(&botao4, tmp_alrm_vazamento);
+					RedrawButton(&botao5, tmp_alrm_queda_rede);
+	
+					if(decoder!=decoderPast) {
+						if(!changing_mode){
+							botao_onoff.is_selected = false;
+							botao1.is_selected = false;
+							botao2.is_selected = false;
+							botao3.is_selected = false;
+							botao4.is_selected = false;
+							botao5.is_selected = false;
+							changing_button = decoder%6;
+							switch(changing_button){
+								case 0:
+									botao_onoff.is_selected = true;
+									break;
+								case 1:
+									botao1.is_selected = true;
+									break;
+								case 2:
+									botao2.is_selected = true;
+									break;
+								case 3:
+									botao3.is_selected = true;
+									break;
+								case 4:
+									botao4.is_selected = true;
+									break;
+								case 5:
+									botao5.is_selected = true;
+									break;
+							}
+						}
+						else {
+							switch(changing_button) {
+								case 0:
+									tmp_respiradorOn ^= 1;
+									break;
+								case 1:
+									decoder>decoderPast? tmp_tmpIns += inc_tmpIns : tmp_tmpIns -= inc_tmpIns;
+									alterarTmpIns();
+									break;
+								case 2:
+									decoder>decoderPast? tmp_freRes += inc_freRes : tmp_freRes -= inc_freRes;
+									alterarFreRes();
+									break;
+								case 3:
+									decoder>decoderPast? tmp_alrm_pressao += inc_alrm_pressao : tmp_alrm_pressao -= inc_alrm_pressao;
+									break;
+								case 4:
+									decoder>decoderPast? tmp_alrm_vazamento += inc_alrm_vazamento : tmp_alrm_vazamento -= inc_alrm_vazamento;
+									break;
+								case 5:
+									decoder>decoderPast? tmp_alrm_queda_rede += inc_alrm_queda_rede : tmp_alrm_queda_rede -= inc_alrm_queda_rede;
+									break;
+							}
+						}
+						decoderPast=decoder;
+					}
+					if(confirm_mode) {
+						changing_mode = false;
+						confirm_mode = false;
+					}
+					else if(discard_mode) {
+						changing_mode = false;
+						discard_mode = false;
 						switch(changing_button) {
 							case 0:
-								decoder>decoderPast? tmp_tmpIns += inc_tmpIns : tmp_tmpIns -= inc_tmpIns;
+								tmp_respiradorOn = respiradorOn;
 								break;
 							case 1:
-								decoder>decoderPast? tmp_freRes += inc_freRes : tmp_freRes -= inc_freRes;
+								tmp_tmpIns = tmpIns;
 								break;
 							case 2:
-								decoder>decoderPast? tmp_alrm_pressao += inc_alrm_pressao : tmp_alrm_pressao -= inc_alrm_pressao;
+								tmp_freRes = freRes;
 								break;
 							case 3:
-								decoder>decoderPast? tmp_alrm_vazamento += inc_alrm_vazamento : tmp_alrm_vazamento -= inc_alrm_vazamento;
+								tmp_alrm_pressao = alrm_pressao;
 								break;
 							case 4:
-								decoder>decoderPast? tmp_alrm_queda_rede += inc_alrm_queda_rede : tmp_alrm_queda_rede -= inc_alrm_queda_rede;
+								tmp_alrm_vazamento = alrm_vazamento;
+								break;
+							case 5:
+								tmp_alrm_queda_rede = alrm_queda_rede;
 								break;
 						}
 					}
-					decoderPast=decoder;
-					decoderPast=decoder;
 				}
-				if(confirm_mode) {
-					changing_mode = false;
-					confirm_mode = false;
-				}
-				else if(discard_mode) {
-					changing_mode = false;
-					discard_mode = false;
-					switch(changing_button) {
-						case 0:
-							tmp_tmpIns = tmpIns;
-							break;
-						case 1:
-							tmp_freRes = freRes;
-							break;
-						case 2:
-							tmp_alrm_pressao = alrm_pressao;
-							break;
-						case 3:
-							tmp_alrm_vazamento = alrm_vazamento;
-							break;
-						case 4:
-							tmp_alrm_queda_rede = alrm_queda_rede;
-							break;
-					}
-				}
+	
+				FiO2=adc0val;
+//				PEEP=adc0val;
+//				volIns=adc0val;
+//				flxIns=adc0val;
+//				I_E=adc0val;
+	
+				//Atualizacao de caixas
+				RedrawBox(&caixa1, FiO2);
+				RedrawBox(&caixa2, PEEP);
+				RedrawBox(&caixa3, volIns);
+				RedrawBox(&caixa4, flxIns);
+				RedrawBox(&caixa5, I_E);
 			}
-
-			FiO2=adc0val;
-			PEEP=adc0val;
-			volIns=adc0val;
-			flxIns=adc0val;
-			I_E=adc0val;
-
-			//Atualizacao de caixas
-			RedrawBox(&caixa1, shutTimerCount);
-			RedrawBox(&caixa2, PEEP);
-			RedrawBox(&caixa3, volIns);
-			RedrawBox(&caixa4, flxIns);
-			RedrawBox(&caixa5, I_E);
-		}
-
+	
 #ifdef _DEBUG
-		showFPS();
+			showFPS();
 #endif
-		while (!drawingFlag)
-			vTaskDelay(2/portTICK_PERIOD_MS);
-		drawingFlag = false;
+			while (!drawingFlag)
+				vTaskDelay(2/portTICK_PERIOD_MS);
+			drawingFlag = false;
+		}
+		shutDownFlag = false;
+		booted = false;
+		xTaskCreatePinnedToCore(ResetTaskFunction, "ResetTask", 1000, NULL, PRIORITY_0, &ResetTask, CORE_0);
+		vTaskSuspend(NULL);
 	}
-	shutDownFlag = false;
-	booted = false;
-	xTaskCreatePinnedToCore(ResetTaskFunction, "ResetTask", 1000, NULL, PRIORITY_0, &ResetTask, CORE_0);
-	vTaskSuspend(NULL);
-}
 }
 
 void BuzzerTaskFunction(void* parameters){
@@ -829,27 +898,4 @@ void ResetTaskFunction(void* parameters){
 }
 
 void loop() {
-  //led
-  /*LoopLed(button0pin,ledadv0);
-  LoopLed(button1pin,ledadv1);
-  LoopLed(button2pin,ledadv2);
-
-  // buzzer
-   digitalWrite(buzzer, LOW);
-    if(valmax<=val)
-    {
-      digitalWrite(buzzer, HIGH);
-      delay(10);
-    }
-    if(valmax==0){
-    digitalWrite(buzzer, HIGH);
-    delay(1);
-    }
-    while(digitalRead(16)==HIGH && digitalRead(17)==HIGH){
-    contreset++;
-    if(contreset>=1500000){
-    ESP.restart();
-    }
-    }
-    contreset=0;*/
 }

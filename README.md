@@ -22,22 +22,9 @@ Pronto! Na teoria o microcontrolador deve mostrar imagens no seu monitor VGA.
 
 # TODO
 
--Tela inicial de setup de parâmetros;
-
--Definir os parâmetros nas caixas, botões e gráficos;
-
-<del>Incrementar funções para leitura de botões e encoder;</del>
-
-<del>Configurar GPIOs para botões, e algumas saída;</del>
-
-<del>Incrementar leitura de 3 A/Ds (0-3.0V)</del>
-
-<del>Habilitar interrupções;</del>
-
--Opção para aspecto 16:9 (Atualmente somente para 4:3).
-
 # Colaboradores
 
 Bruno Gabriel da Silva
 
 Lucas Zischler
+
