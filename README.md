@@ -1,6 +1,6 @@
-# Respirador
+# Ventilador
 
-Projeto para uma interface Homem-Máquina desenvolvida a fim de ser utilizada para um respirador artíficial, voltado para um ESP32. Desenvolvido em nome da UTFPR-Câmpus Apucarana.
+Projeto para uma interface Homem-Máquina desenvolvida a fim de ser utilizada para um ventilador pulmonar, voltado para um ESP32. Desenvolvido em nome da UTFPR-Câmpus Apucarana.
 
 # Como utilizar
 
