@@ -14,7 +14,7 @@
 //Parte para calculos e atuacoes do respirador
 TaskHandle_t RespiradorTask;
 
-unsigned int tmpIns_counter = (int)tmpIns*1000, tmpCmp_counter = (int)tmpCmp*1000;	
+unsigned int tmpIns_counter = (int)(tmpIns*1000.0f), tmpCmp_counter = (int)(tmpCmp*1000.0f);	
 unsigned int respirador_counter = 0;
 unsigned short adc_sample_count = 0;
 unsigned int tmp_adc0val = 0, tmp_adc1val = 0, tmp_adc2val = 0;
@@ -24,12 +24,12 @@ void RespiradorTaskFunction(void* parameters) {
 	
 		// Incrementa o contador do respirador e reseta no final do ciclo
 		respirador_counter++;
-		if (respirador_counter>(int)tmpCmp*1000)
+		if (respirador_counter>(int)(tmpCmp*1000.0f))
 			respirador_counter = 0;
  
  		// Alterna o estado das valvulas
 		if(respiradorOn) {
-			if (respirador_counter<(int)tmpIns*1000){
+			if (respirador_counter<(int)(tmpIns*1000.0f)){
 				digitalWrite(valve0pin,HIGH);
 				digitalWrite(valve1pin,HIGH);
 			}
