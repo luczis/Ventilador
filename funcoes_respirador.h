@@ -32,14 +32,17 @@ void RespiradorTaskFunction(void* parameters) {
 			if (respirador_counter<(int)(tmpIns*1000.0f)){
 				digitalWrite(valve0pin,HIGH);
 				digitalWrite(valve1pin,HIGH);
+				digitalWrite(buzzer,HIGH);
 			}
 			else{
 				digitalWrite(valve0pin,LOW);
 				digitalWrite(valve1pin,LOW);
+				digitalWrite(buzzer,LOW);
 			}
 		}
 
 		// Realiza media dos ADCs
+		
 		tmp_adc0val = analogRead(adc0pin);
 		tmp_adc1val = analogRead(adc1pin);
 		tmp_adc2val = analogRead(adc2pin);
@@ -54,6 +57,7 @@ void RespiradorTaskFunction(void* parameters) {
 			tmp_adc2val = 0;
 			adc_sample_count = 0;
 		}
+		
 	}
 }
 

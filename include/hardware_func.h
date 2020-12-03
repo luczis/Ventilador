@@ -3,11 +3,12 @@ bool shut_but_flag = false;
 byte buttonFlag = 0;
 uint32_t port32val = 0;
 TaskHandle_t ButtonTask;
+TaskHandle_t SwitchTask;
 
 //Detecta interrupcoes do botao
 unsigned long lastButInt = 0;
 void ButtonInterrupt() {
-	if(millis()-lastButInt>500) {
+	if(millis()-lastButInt>100) {
 		lastButInt=millis();
 		vTaskResume(ButtonTask);
 	}
@@ -17,7 +18,26 @@ void ButtonInterrupt() {
 void ButtonTaskFunction(void* parameters) {
 	while(1) {
 		port32val=(uint32_t)(*portInputRegister(digitalPinToPort(button0pin)));
-		buttonFlag = ((port32val&0x30000)>>16) | ((port32val&0x1000)>>10);
+		buttonFlag = ((port32val&0x50000)>>16) | 0b010;
+		vTaskSuspend(NULL);
+	}
+}
+
+//Detecta interrupcoes do switch
+unsigned long lastSwiInt = 0;
+void SwitchInterrupt() {
+	if(millis()-lastSwiInt>100) {
+		lastButInt=millis();
+		vTaskResume(SwitchTask);
+	}
+}
+
+//Tarefa para switch
+void SwitchTaskFunction(void* parameters) {
+	while(1) {
+		//port32val=(uint32_t)(*portInputRegister(digitalPinToPort(button0pin)));
+		buttonFlag = 0b101;
+		//(port32val&0x70000)>>16;
 		vTaskSuspend(NULL);
 	}
 }
@@ -71,8 +91,8 @@ TaskHandle_t EncoderTask;
 //Detecta interrupcoes do encoder
 unsigned long lastEncInt = 0;
 void EncoderInterrupt() {
-	if(millis()-lastEncInt>1) {
-		lastEncInt=millis();
+	if(micros()-lastEncInt>1000) {
+		lastEncInt=micros();
 		vTaskResume(EncoderTask);
 	}
 }

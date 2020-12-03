@@ -188,10 +188,10 @@ void setup()
 	pinMode(encBpin ,INPUT_PULLDOWN);
 	pinMode(buzzer, OUTPUT);
 	attachInterrupt(digitalPinToInterrupt(button0pin), ButtonInterrupt, FALLING);
-	attachInterrupt(digitalPinToInterrupt(button1pin), ButtonInterrupt, FALLING);
+	attachInterrupt(digitalPinToInterrupt(button1pin), SwitchInterrupt, CHANGE);
 	attachInterrupt(digitalPinToInterrupt(button2pin), ButtonInterrupt, FALLING);
-	attachInterrupt(digitalPinToInterrupt(encApin), EncoderInterrupt, CHANGE);
-	attachInterrupt(digitalPinToInterrupt(encBpin), EncoderInterrupt, CHANGE);
+	attachInterrupt(digitalPinToInterrupt(encApin), EncoderInterrupt, RISING);
+	attachInterrupt(digitalPinToInterrupt(encBpin), EncoderInterrupt, RISING);
 
 	//Configuracoes VGA
 	vga.init(vga.MODE800x600, redPin, greenPin, bluePin, hsyncPin, vsyncPin);
@@ -201,8 +201,9 @@ void setup()
 	vga.setFrameBufferCount(1);
 	
 	//Definicao de tarefas iniciais
-	xTaskCreatePinnedToCore(EncoderTaskFunction, "EncoderTask", 700, NULL, PRIORITY_2, &EncoderTask, CORE_1);
-	xTaskCreatePinnedToCore(ButtonTaskFunction, "ButtonTask", 700, NULL, PRIORITY_2, &ButtonTask, CORE_1);
+	xTaskCreatePinnedToCore(EncoderTaskFunction, "EncoderTask", 700, NULL, PRIORITY_1, &EncoderTask, CORE_1);
+	xTaskCreatePinnedToCore(ButtonTaskFunction, "ButtonTask", 700, NULL, PRIORITY_1, &ButtonTask, CORE_1);
+	xTaskCreatePinnedToCore(SwitchTaskFunction, "SwitchTask", 700, NULL, PRIORITY_1, &SwitchTask, CORE_1);
 	xTaskCreatePinnedToCore(StartTaskFunction, "StartTask", 1000, NULL, PRIORITY_0, &StartTask, CORE_0);
 	xTaskCreate(BuzzerTaskFunction, "BuzzerTask", 500, NULL, PRIORITY_0, &BuzzerTask);
 	
@@ -274,14 +275,14 @@ void StartTaskFunction(void* parameters) {
     	if (start_frame_counter % INFO_FRAMES_UPDATE == 0) {
 			if(buttonFlag!=0b111) {
 				switch(buttonFlag){
-					case 0b110:
+					case 0b011:
 						currentRow++;
 						break;
-					case 0b011:
+					case 0b101:
 						changing_mode ^= true;
 						break;
 				}
-				if((currentRow%4)==3 && buttonFlag==0b101)
+				if((currentRow%4)==3 && buttonFlag==0b110)
 					config_mode = true;
 				else
 					config_mode = false;
@@ -293,6 +294,9 @@ void StartTaskFunction(void* parameters) {
 				switch(currentRow){
 					case 0:
 						decoder = paciente;
+						break;
+					case 1:
+						decoder = 0;
 						break;
 					case 2:
 						decoder = modo_operacao;
@@ -363,6 +367,8 @@ void StartTaskFunction(void* parameters) {
 						startBotao4.is_changing = false;
 						startBotao5.is_changing = false;
 						switch(decoder%2) {
+							default:
+								decoder=0;
 							case 0:
 								startBotao4.is_selected = true;
 								startBotao5.is_selected = false;
@@ -394,7 +400,6 @@ void StartTaskFunction(void* parameters) {
 					RedrawButton(&startBotao5, altura_paciente);
 					break;
 				case 2:
-					decoder = modo_operacao;
 					startBotao6.config_on = true;
 					startBotao7.config_on = true;
 					startBotao8.config_on = true;
@@ -430,8 +435,8 @@ void StartTaskFunction(void* parameters) {
 							startBotao9.is_selected = true;
 							startBotao10.is_selected = false;
 							if(config_mode) {
-								if(esp_sleep_enable_ext0_wakeup(GPIO_NUM_12, 0) == ESP_OK)
-									if(rtc_gpio_pullup_en(GPIO_NUM_12) == ESP_OK) {
+								if(esp_sleep_enable_ext0_wakeup(GPIO_NUM_15, 0) == ESP_OK)
+									if(rtc_gpio_pullup_en(GPIO_NUM_15) == ESP_OK) {
 										esp_deep_sleep_start();
 										resetFunc();
 									}
@@ -501,7 +506,7 @@ void SetupDrawTaskFunction(void* parameters) {
 
 	if(!continuarFlag) {
 		xTaskCreatePinnedToCore(DrawingTaskFunction, "DrawingTask", 7000, NULL, PRIORITY_1, &DrawingTask, CORE_0);
-		xTaskCreatePinnedToCore(RespiradorTaskFunction, "RespiradorTask", 3000, NULL, PRIORITY_3, &RespiradorTask, CORE_1);
+		xTaskCreatePinnedToCore(RespiradorTaskFunction, "RespiradorTask", 700, NULL, PRIORITY_2, &RespiradorTask, CORE_1);
 	}
 	else
 		vTaskResume(DrawingTask);
@@ -534,12 +539,14 @@ void DrawingTaskFunction(void* parameters) {
 						case 0b110:
 							if(config_mode)
 								confirm_mode = true;
+							else
+								config_mode = true;
 							break;
 						case 0b011:
-							if(!config_mode)
-								config_mode = true;
-							else
+							if(config_mode)
 								discard_mode = true;
+							else
+								config_mode = true;
 							break;
 						case 0b101:
 							if(config_mode)
@@ -599,6 +606,7 @@ void DrawingTaskFunction(void* parameters) {
 					}
 					if(config_mode!=config_mode_past) {
 						decoder = 0;
+						decoderPast = 1;
 						config_mode_past = config_mode;
 						botao_onoff.config_on = config_mode;
 						botao1.config_on = config_mode;
@@ -737,7 +745,7 @@ void DrawingTaskFunction(void* parameters) {
 					}
 				}
 	
-				FiO2=adc0val;
+//				FiO2=adc0val;
 //				PEEP=adc0val;
 //				volIns=adc0val;
 //				flxIns=adc0val;
@@ -851,8 +859,8 @@ void ResetTaskFunction(void* parameters){
 			continuarFlag = true;
 			if(shutDownFlag){
 				vTaskDelay(1000/portTICK_PERIOD_MS);
-				if(rtc_gpio_pullup_en(GPIO_NUM_12) == ESP_OK) {
-					if(esp_sleep_enable_ext0_wakeup(GPIO_NUM_12, 0) == ESP_OK) {
+				if(rtc_gpio_pullup_en(GPIO_NUM_15) == ESP_OK) {
+					if(esp_sleep_enable_ext0_wakeup(GPIO_NUM_15, 0) == ESP_OK) {
 						esp_deep_sleep_start();
 						resetFunc();
 					}
