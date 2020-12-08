@@ -26,5 +26,5 @@ const int valve1pin = 21;
 const int valve2pin = 22;
 
 //---- Pinagem do buzzer
-const int buzzer = 1;
+const int buzzer = 13;
 
