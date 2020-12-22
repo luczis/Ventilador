@@ -1,8 +1,8 @@
 # Ventilador voltado para COVID-19
 
-*READ IN OTHER LANGUAGE: [English](README.en.md)*
+*READ IN OTHER LANGUAGE: [English](./README.en.md)*
 
-Projeto inicial para programação de um microcontrolador ESP32 desenvolvido a fim de ser utilizada para um ventilador pulmonar, voltado para COVID-19. Desenvolvido em nome da UTFPR-Câmpus Apucarana.
+Projeto de programação de um microcontrolador ESP32 desenvolvido a fim de ser utilizada para um ventilador pulmonar, voltado auxiliar no combate a COVID-19. Desenvolvido em nome da UTFPR-Câmpus Apucarana.
 
 # Como utilizar
 
