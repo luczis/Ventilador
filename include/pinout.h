@@ -21,9 +21,9 @@ const int encApin = 4;
 const int encBpin = 5;
 
 //---- Pinagem para as valvulas
-const int valve0pin = 23;
-const int valve1pin = 21;
-const int valve2pin = 22;
+const int valve0pin = 21;
+const int valve1pin = 22;
+const int valve2pin = 23;
 
 //---- Pinagem do buzzer
 const int buzzer = 13;

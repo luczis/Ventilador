@@ -4,8 +4,8 @@
 // voltado para um ESP32. Desenvolvido em nome da UTFPR-Campus Apucarana.
 //
 // Colaboradores:
-// - Bruno Gabriel da Silva 
 // - Lucas Zischler
+// - Bruno Gabriel da Silva 
 //
 
 #include "include/ESP32Lib.h"
@@ -27,14 +27,6 @@
 #define TEMPO_LOGO 5			//Tempo que a logo fica ativa no inicio
 #define ADC_SAMPLES 50			//Quantidade de amostras ADCs para fazer uma media
 #define _CLOCK					//Ativa o relogio -- Ainda nao implementado --
-
-float valmax=0;
-float val=0;
-float valbuz=0;
-int a=1;
-int contreset=0;
-int flag=1;
-int flag1=0;
 
 //Definicao de parametros enum
 enum Enum_Paciente {
@@ -62,18 +54,18 @@ float FiO2 = .21f;	//0.21	-	1.0 	%			Fracao de oxigenio inspirado
 float PEEP = 0;		//0		-	20 		cm H2O		Pressao expiratoria final positiva
 float volIns = 50;	//50	-	700 	mL			Volume inspiratorio
 float flxIns = 0;	//0		-	70 		L/min		Fluxo inspiratorio
-float freRes = 8;	//8		-	40		RPM			Frequencia respiratoria
-float tmpIns = 0.3f;//0.3	-	2.0		s			Tempo inspiratorio
-float tmpCmp = 0.3f;//0.3	-	2.0		s			Tempo completo
+float freRes = 10;	//8		-	40		RPM			Frequencia respiratoria
+float tmpIns = 1.0f;//0.3	-	2.0		s			Tempo inspiratorio
+float tmpExp = 1.0f;//0.3  - 2.0   s     Tempo inspiratorio
+float tmpCmp = 60.0f/freRes;//0.3	-	2.0		s			Tempo completo
 float I_E = 0.0;	//								Relacao inspiracao/expiracao
-
 //Valores dos ADCs
 unsigned int adc0val = 0, adc1val = 0, adc2val = 0;
 
 //Alarmes
-int alrm_pressao = 100;
-int alrm_vazamento = 100;
-int alrm_queda_rede = 100;
+int alrm_pressao = 2000;
+int alrm_vazamento = 2000;
+int alrm_queda_rede = 2000;
 
 //Valores de incremento
 const float inc_freRes = 1;
@@ -84,16 +76,17 @@ const int inc_alrm_queda_rede = 1;
 
 //Valores temporarios para atualizar no final da config
 bool tmp_respiradorOn = false;
-float tmp_freRes = 8;
-float tmp_tmpIns = 0.3f;
-float tmp_tmpExp = 0.3f;
-float tmp_tmpCmp = 0.3f;
-float tmp_I_E = 1;
-int tmp_alrm_pressao = 100;
-int tmp_alrm_vazamento = 100;
-int tmp_alrm_queda_rede = 100;
+float tmp_freRes = freRes;
+float tmp_tmpIns = tmpIns;
+float tmp_tmpExp = tmpExp;
+float tmp_tmpCmp = tmpCmp;
+float tmp_I_E = I_E;
+int tmp_alrm_pressao = alrm_pressao;
+int tmp_alrm_vazamento = alrm_pressao;
+int tmp_alrm_queda_rede = alrm_pressao;
 
 //Parametros globais
+int buzzer_channel=0;
 bool config_mode = 0;
 bool config_mode_past = 1;
 bool changing_mode = 0;
@@ -104,6 +97,7 @@ bool button1press = 0;
 bool button2press = 0;
 bool booted = false;
 bool respiradorOn = false;
+bool mainScreen = false;
 bool startPhase = true;
 bool shutDownFlag = false;
 bool resetFlag = false;
@@ -134,7 +128,6 @@ TaskHandle_t DrawingTask;
 TaskHandle_t StartTask;
 TaskHandle_t SetupDrawTask;
 TaskHandle_t EndTask;
-TaskHandle_t BuzzerTask;
 TaskHandle_t ResetTask;
 
 //Definicao de funcoes de tarefas
@@ -142,7 +135,6 @@ void DrawingTaskFunction(void* parameters);
 void StartTaskFunction(void* parameters);
 void SetupDrawTaskFunction(void* parameters);
 void EndTaskFunction(void* parameters);
-void BuzzerTaskFunction(void* parameters);
 void ResetTaskFunction(void* parameters);
 
 #include "funcoes_respirador.h"
@@ -156,26 +148,6 @@ void setup()
 	//Configuracao de seed aleatoria
 	randomSeed(analogRead(0));
 
-	//Configuração do timer para interrupcoes gerais
-	timerInt = timerBegin(TIMER_0, 80, true);
-	timerAttachInterrupt(timerInt, &int0_01s, true);
-	timerAlarmWrite(timerInt, 10000, true);
-	timerAlarmEnable(timerInt);
-
-	//Configuração do timer para interrupcoes do respirador ADC/valvulas
-	timerRes = timerBegin(TIMER_1, 80, true);
-	timerAttachInterrupt(timerRes, &int0_001s, true);
-	timerAlarmWrite(timerRes, 10000, true);
-	timerAlarmEnable(timerRes);
-
-	//Utilizado para debug, mostra o que causou o ultimo reset do sistema
-	Serial.println("CPU0 reset reason:");
-	print_reset_reason(rtc_get_reset_reason(0));
-	verbose_print_reset_reason(rtc_get_reset_reason(0));
-	Serial.println("CPU1 reset reason:");
-	print_reset_reason(rtc_get_reset_reason(1));
-	verbose_print_reset_reason(rtc_get_reset_reason(1));
-
 	//Configuracao de pinos
 	pinMode(valve0pin, OUTPUT);
 	pinMode(valve1pin, OUTPUT);
@@ -187,6 +159,31 @@ void setup()
 	pinMode(encApin ,INPUT_PULLDOWN);
 	pinMode(encBpin ,INPUT_PULLDOWN);
 	pinMode(buzzer, OUTPUT);
+	ledcSetup(buzzer_channel, 2000, 10);
+	ledcAttachPin(buzzer, buzzer_channel);
+
+	//Configuração do timer para interrupcoes gerais
+	timerInt = timerBegin(TIMER_0, 80, true);
+	timerAttachInterrupt(timerInt, &int0_01s, true);
+	timerAlarmWrite(timerInt, 10000, true);
+	timerAlarmEnable(timerInt);
+
+	//Configuração do timer para interrupcoes do respirador ADC/valvulas
+	timerRes = timerBegin(TIMER_1, 80, true);
+	timerAttachInterrupt(timerRes, &int0_001s, true);
+	timerAlarmWrite(timerRes, 1000, true);
+	timerAlarmEnable(timerRes);
+
+#ifdef _DEBUG
+	//Utilizado para debug, mostra o que causou o ultimo reset do sistema
+	Serial.println("CPU0 reset reason:");
+	print_reset_reason(rtc_get_reset_reason(0));
+	verbose_print_reset_reason(rtc_get_reset_reason(0));
+	Serial.println("CPU1 reset reason:");
+	print_reset_reason(rtc_get_reset_reason(1));
+	verbose_print_reset_reason(rtc_get_reset_reason(1));
+#endif
+  
 	attachInterrupt(digitalPinToInterrupt(button0pin), ButtonInterrupt, FALLING);
 	attachInterrupt(digitalPinToInterrupt(button1pin), SwitchInterrupt, CHANGE);
 	attachInterrupt(digitalPinToInterrupt(button2pin), ButtonInterrupt, FALLING);
@@ -205,7 +202,6 @@ void setup()
 	xTaskCreatePinnedToCore(ButtonTaskFunction, "ButtonTask", 700, NULL, PRIORITY_1, &ButtonTask, CORE_1);
 	xTaskCreatePinnedToCore(SwitchTaskFunction, "SwitchTask", 700, NULL, PRIORITY_1, &SwitchTask, CORE_1);
 	xTaskCreatePinnedToCore(StartTaskFunction, "StartTask", 1000, NULL, PRIORITY_0, &StartTask, CORE_0);
-	xTaskCreate(BuzzerTaskFunction, "BuzzerTask", 500, NULL, PRIORITY_0, &BuzzerTask);
 	
 }
 
@@ -475,12 +471,12 @@ void SetupDrawTaskFunction(void* parameters) {
 	DrawLogo(550, 10);
 
 	//Configuracoes dos graficos
-	grafico1.ydataoff = 75;
-	grafico2.ydataoff = -20;
-	grafico3.ydataoff = 75;
-	grafico1.ydatasize = 150;
-	grafico2.ydatasize = 150;
-	grafico3.ydatasize = 150;
+	grafico1.ydataoff = 0;
+	grafico2.ydataoff = 0;
+	grafico3.ydataoff = 0;
+	grafico1.ydatasize = 3000;
+	grafico2.ydatasize = 3000;
+	grafico3.ydatasize = 3000;
 	grafico1.xdatasize = 100/MIN_MIL;
 	grafico2.xdatasize = 100/MIN_MIL;
 	grafico3.xdatasize = 100/MIN_MIL;
@@ -519,6 +515,7 @@ void DrawingTaskFunction(void* parameters) {
 	static unsigned short graphCnt = 0;
 	decoder = 0;
 	decoderPast = 1;
+    mainScreen = true;
 	static byte changing_button = 0;
 	while(1){
 		config_mode = false;
@@ -745,11 +742,11 @@ void DrawingTaskFunction(void* parameters) {
 					}
 				}
 	
-//				FiO2=adc0val;
-//				PEEP=adc0val;
-//				volIns=adc0val;
-//				flxIns=adc0val;
-//				I_E=adc0val;
+				FiO2=adc0val;
+				PEEP=adc1val;
+				volIns=adc2val;
+				flxIns=respirador_counter;
+				I_E=tmpCmp;
 	
 				//Atualizacao de caixas
 				RedrawBox(&caixa1, FiO2);
@@ -765,25 +762,12 @@ void DrawingTaskFunction(void* parameters) {
 			while (!drawingFlag)
 				vTaskDelay(2/portTICK_PERIOD_MS);
 			drawingFlag = false;
+    mainScreen = true;
 		}
 		shutDownFlag = false;
-		booted = false;
 		xTaskCreatePinnedToCore(ResetTaskFunction, "ResetTask", 1000, NULL, PRIORITY_0, &ResetTask, CORE_0);
 		vTaskSuspend(NULL);
 	}
-}
-
-void BuzzerTaskFunction(void* parameters){
-	digitalWrite(buzzer, LOW);
-	if(valmax<=val) {
-		digitalWrite(buzzer, HIGH);
-		vTaskDelay(10/portTICK_PERIOD_MS);
-	}
-	else if(valmax==0) {
-		digitalWrite(buzzer, HIGH);
-		vTaskDelay(10/portTICK_PERIOD_MS);
-	}
-	vTaskDelete(NULL);
 }
 
 void ResetTaskFunction(void* parameters){
@@ -800,8 +784,8 @@ void ResetTaskFunction(void* parameters){
 	while(!continuarFlag) {
 		DrawBackground(800, 600, 0x0, 0x0);
 		SetupButton(&resetBotao1, 50, 200, 200, 200, "", "VOLTAR", "");
-		SetupButton(&resetBotao2, 300, 200, 200, 200, "", "DESLIGAR", "");
-		SetupButton(&resetBotao3, 550, 200, 200, 200, "", "REINICIAR", "");
+		SetupButton(&resetBotao2, 550, 200, 200, 200, "", "DESLIGAR", "");
+		SetupButton(&resetBotao3, 300, 200, 200, 200, "", "REINICIAR", "");
 		vga.setCursor(0,100);
 		vga.printCenter("Sistema de Desligamento:", 0, 800, 0xf, 0x0, 3);
 		vTaskDelay(1000/portTICK_PERIOD_MS);
@@ -810,11 +794,11 @@ void ResetTaskFunction(void* parameters){
 		while(!shouldRedrawFlag) {
 			if(buttonFlag!=0b111) {
 				switch(buttonFlag){
-					case 0b011:
+					case 0b110:
 						shouldRedrawFlag = true;
 						continuarFlag = true;
 						break;
-					case 0b110:
+					case 0b011:
 						shouldRedrawFlag = true;
 						sairFlag = true;
 						break;
@@ -840,12 +824,12 @@ void ResetTaskFunction(void* parameters){
 			while(sairFlag) {
 				if(buttonFlag!=0b111) {
 					switch(buttonFlag){
-						case 0b011:
+						case 0b110:
 							shutDownFlag = true;
 							sairFlag = false;
 							shouldRedrawFlag = true;
 							break;
-						case 0b110:
+						case 0b011:
 							sairFlag = false;
 							shouldRedrawFlag = true;
 							break;
@@ -878,12 +862,12 @@ void ResetTaskFunction(void* parameters){
 			while(resetFlag) {
 				if(buttonFlag!=0b111) {
 					switch(buttonFlag){
-						case 0b011:
+						case 0b110:
 							shutDownFlag = true;
 							resetFlag = false;
 							shouldRedrawFlag = true;
 							break;
-						case 0b110:
+						case 0b011:
 							resetFlag = false;
 							shouldRedrawFlag = true;
 							break;

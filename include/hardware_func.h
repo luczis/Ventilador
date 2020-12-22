@@ -35,9 +35,7 @@ void SwitchInterrupt() {
 //Tarefa para switch
 void SwitchTaskFunction(void* parameters) {
 	while(1) {
-		//port32val=(uint32_t)(*portInputRegister(digitalPinToPort(button0pin)));
 		buttonFlag = 0b101;
-		//(port32val&0x70000)>>16;
 		vTaskSuspend(NULL);
 	}
 }
@@ -75,7 +73,7 @@ void int0_01s() {
 
 unsigned int respirador_timercounter = 0;
 void int0_001s() {
-	if(respiradorOn) {
+	if(mainScreen) {
 		vTaskResume(RespiradorTask);
 	}
 

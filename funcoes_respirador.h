@@ -18,40 +18,52 @@ unsigned int tmpIns_counter = (int)(tmpIns*1000.0f), tmpCmp_counter = (int)(tmpC
 unsigned int respirador_counter = 0;
 unsigned short adc_sample_count = 0;
 unsigned int tmp_adc0val = 0, tmp_adc1val = 0, tmp_adc2val = 0;
+bool changeCycle = false;
 void RespiradorTaskFunction(void* parameters) {
 	while(1) {
 		vTaskSuspend(NULL);
 	
 		// Incrementa o contador do respirador e reseta no final do ciclo
 		respirador_counter++;
-		if (respirador_counter>(int)(tmpCmp*1000.0f))
+    if (respirador_counter>(int)(tmpCmp*1000.0f))
+   //if (respirador_counter>1000)
 			respirador_counter = 0;
- 
+
  		// Alterna o estado das valvulas
 		if(respiradorOn) {
 			if (respirador_counter<(int)(tmpIns*1000.0f)){
+      //if(respirador_counter<500){
 				digitalWrite(valve0pin,HIGH);
 				digitalWrite(valve1pin,HIGH);
-				digitalWrite(buzzer,HIGH);
+				digitalWrite(valve2pin,HIGH);
+				//digitalWrite(buzzer,HIGH);
 			}
 			else{
 				digitalWrite(valve0pin,LOW);
 				digitalWrite(valve1pin,LOW);
-				digitalWrite(buzzer,LOW);
+        digitalWrite(valve2pin,LOW);
+				//digitalWrite(buzzer,LOW);
 			}
 		}
 
+    // Verifica os alarmes
+    if( (adc0val>=alrm_pressao) ||
+        (adc1val>=alrm_vazamento) ||
+        (adc2val>=alrm_queda_rede))
+      ledcWrite(buzzer_channel, 512);
+    else
+      ledcWrite(buzzer_channel, 0);
+
 		// Realiza media dos ADCs
-		
-		tmp_adc0val = analogRead(adc0pin);
-		tmp_adc1val = analogRead(adc1pin);
-		tmp_adc2val = analogRead(adc2pin);
+		tmp_adc0val += analogRead(adc0pin);
+		tmp_adc1val += analogRead(adc1pin);
+		tmp_adc2val += analogRead(adc2pin);
 
 		adc_sample_count++;
 		if(adc_sample_count >= ADC_SAMPLES) {
 			adc0val = tmp_adc0val/ADC_SAMPLES;
-			adc0val = tmp_adc1val/ADC_SAMPLES;
-			adc0val = tmp_adc2val/ADC_SAMPLES;
+			adc1val = tmp_adc1val/ADC_SAMPLES;
+			adc2val = tmp_adc2val/ADC_SAMPLES;
 			tmp_adc0val = 0;
 			tmp_adc1val = 0;
 			tmp_adc2val = 0;

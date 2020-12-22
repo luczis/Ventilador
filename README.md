@@ -12,19 +12,39 @@ Compile o .ino para o ESP32 (Você precisa de arquivos adicionais para compilar 
 
 A imagem abaixo mostra quais pinos do ESP32 devem ser conectados no conector VGA.
 
-![14 R, 19 G, 27 B, 26 VSYNC, 25 HSYNC](./VGA.svg)
+![14 R, 19 G, 27 B, 26 VSYNC, 25 HSYNC](./readmeIMG/VGA.svg)
 
 Pronto! Na teoria o microcontrolador deve mostrar imagens no seu monitor VGA.
 
-# Bugs conhecidos
+# Resultados
 
--Nenhum ... No momento ...
+Algumas das telas geradas no monitor pelo programa:
+
+## Tela de parâmetros iniciais
+
+Configurações iniciais do sistema são inseridas nesta tela.
+
+![Tela de parametros iniciais](./readmeIMG/tela_inicial.png)
+
+## Tela de durante operação
+
+Esta tela é a fase principal de operação, mostrando os gráficos necessários e dados numéricos, na coluna à esquerda. A coluna à direita define parâmetros passiveis de mudança durante operação.
+
+![Tela durante fase principal](./readmeIMG/tela_default.png)
+
+## Tela de desligamento/reinicialização
+
+Permite desligar/reinicializar o sistema.
+
+![Tela com três botões, voltar, reinicializar e desligar](./readmeIMG/tela_final.png)
+
+# Bugs conhecidos
 
 # TODO
 
 # Colaboradores
 
-Bruno Gabriel da Silva
-
 Lucas Zischler
+
+Bruno Gabriel da Silva
 
