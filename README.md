@@ -38,10 +38,6 @@ Permite desligar/reinicializar o sistema.
 
 ![Tela com três botões, voltar, reinicializar e desligar](./readmeIMG/tela_final.png)
 
-# Bugs conhecidos
-
-# TODO
-
 # Colaboradores
 
 Lucas Zischler
