@@ -1,4 +1,4 @@
-# Ventilador
+# Ventilador voltado para COVID-19
 
 *READ IN OTHER LANGUAGE: [English](README.en.md)*
 
