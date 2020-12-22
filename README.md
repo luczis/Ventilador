@@ -2,7 +2,7 @@
 
 *READ IN OTHER LANGUAGE: [English](README.en.md)*
 
-Projeto para uma interface Homem-Máquina desenvolvida a fim de ser utilizada para um ventilador pulmonar, voltado para um ESP32. Desenvolvido em nome da UTFPR-Câmpus Apucarana.
+Projeto inicial para programação de um microcontrolador ESP32 desenvolvido a fim de ser utilizada para um ventilador pulmonar, voltado para COVID-19. Desenvolvido em nome da UTFPR-Câmpus Apucarana.
 
 # Como utilizar
 
